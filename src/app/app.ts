@@ -6,6 +6,8 @@ import { RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, 
 
 const DAY_NAMES = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 type RecipeForm = RecipeDraft;
+type MealType = 'dinner' | 'lunch';
+type PlanEntry = { recipeId: string; type: MealType; eaten: boolean };
 
 function withDeadline<T>(request: Promise<T>, milliseconds: number): Promise<T> {
   let timer: number | undefined;
@@ -23,7 +25,7 @@ function withDeadline<T>(request: Promise<T>, milliseconds: number): Promise<T> 
 
 function emptyRecipe(): RecipeForm {
   return {
-    title: '', description: '', prepMinutes: null, cookMinutes: null, servings: null,
+    title: '', mealKind: 'dinner', description: '', prepMinutes: null, cookMinutes: null, servings: null,
     foodType: 'other', difficulty: 'easy', favorite: false, kidFriendly: false,
     ingredients: [{ name: '', amount: '', unit: '', sectionCode: '' }], steps: [''],
   };
@@ -47,8 +49,15 @@ export class App {
   screen: 'week' | 'shopping' | 'collection' | 'recipe-detail' | 'new-recipe' | 'saved' = 'week';
   weekStart = this.getCurrentWeekStart();
   weeklyPlan: WeeklyPlan | null = null;
-  planDraft: (string | null)[] = Array(7).fill(null);
-  savedRecipeIds: (string | null)[] = Array(7).fill(null);
+  planDraft: PlanEntry[] = [];
+  savedRecipeIds: PlanEntry[] = [];
+  planAccepted = false;
+  planUnlockOpen = false;
+  planUnlockPin = '';
+  planUnlocking = false;
+  planEditPin = '';
+  eatenUpdatingIndex: number | null = null;
+  preferences = { dinners: 7, chicken: 1, meat: 1, fish: 1, vegetarian: 1, easy: 3, kidFriendly: 2, favorites: 2, lunch: 0 };
   shoppingList: ShoppingList | null = null;
   weekLoading = false;
   private weekLoadGeneration = 0;
@@ -76,6 +85,12 @@ export class App {
   sectionMessage = '';
   sectionSettingsOpen = false;
   deletingRecipeId: string | null = null;
+  deleteConfirmationRecipeId: string | null = null;
+  deleteRecipePin = '';
+  recipeEditPin = '';
+  recipeEditPinOpen = false;
+  recipeUnlocking = false;
+  confirmingRecipeId: string | null = null;
   deletingShoppingItemId: string | null = null;
   savingShoppingItemId: string | null = null;
   savingItemSectionId: string | null = null;
@@ -93,11 +108,15 @@ export class App {
   }
 
   get isPlanDirty(): boolean {
-    return this.planDraft.some((id, index) => id !== this.savedRecipeIds[index]);
+    return JSON.stringify(this.planDraft.map(({ recipeId, type }) => ({ recipeId, type }))) !== JSON.stringify(this.savedRecipeIds.map(({ recipeId, type }) => ({ recipeId, type })));
   }
 
   get selectedDinnerCount(): number {
-    return this.planDraft.filter(Boolean).length;
+    return this.planDraft.length;
+  }
+
+  get eatenMealCount(): number {
+    return this.planDraft.filter((entry) => entry.eaten).length;
   }
 
   get weekRangeLabel(): string {
@@ -118,14 +137,14 @@ export class App {
     return 1 + Math.round(((date.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
   }
 
-  get groupedShoppingItems(): { id: string; title: string; note: string; items: ShoppingListItem[] }[] {
+  get groupedShoppingItems(): { id: string; title: string; items: ShoppingListItem[] }[] {
     if (!this.shoppingList) return [];
     const groups = new Map<string, ShoppingListItem[]>();
     for (const item of this.shoppingList.items) {
       const code = item.sectionCode || '?';
       groups.set(code, [...(groups.get(code) ?? []), item]);
     }
-    return [...groups.keys()].sort((a, b) => a === '?' ? 1 : b === '?' ? -1 : (this.storeSections.find((s) => s.code === a)?.position ?? 999) - (this.storeSections.find((s) => s.code === b)?.position ?? 999)).map((id) => ({ id, title: id === '?' ? 'Oplacerade' : this.storeSections.find((s) => s.code === id)?.name ?? `Avdelning ${id}`, note: id === '?' ? 'Välj avdelning för varorna' : `Avdelning ${id}`, items: groups.get(id)!.sort((a,b) => a.name.localeCompare(b.name, 'sv')) }));
+    return [...groups.keys()].sort((a, b) => a === '?' ? 1 : b === '?' ? -1 : (this.storeSections.find((s) => s.code === a)?.position ?? 999) - (this.storeSections.find((s) => s.code === b)?.position ?? 999)).map((id) => ({ id, title: id === '?' ? 'Oplacerade' : this.storeSections.find((s) => s.code === id)?.name ?? 'Avdelning saknas', items: groups.get(id)!.sort((a,b) => a.name.localeCompare(b.name, 'sv')) }));
   }
 
   get checkedItemCount(): number {
@@ -174,8 +193,9 @@ export class App {
       })(), 9000);
       if (requestId !== this.weekLoadGeneration) return;
       this.weeklyPlan = plan;
-      this.planDraft = plan.meals.map((meal) => meal.recipeId);
-      this.savedRecipeIds = [...this.planDraft];
+      this.planDraft = plan.meals.filter((meal) => meal.recipeId).map((meal) => ({ recipeId: meal.recipeId!, type: meal.type ?? 'dinner', eaten: meal.eaten === true }));
+      this.savedRecipeIds = this.planDraft.map((meal) => ({ ...meal }));
+      this.planAccepted = plan.updatedAt !== null && this.planDraft.length > 0;
       this.shoppingList = shoppingList;
     } catch (error) {
       if (requestId !== this.weekLoadGeneration) return;
@@ -193,6 +213,8 @@ export class App {
     const next = this.parseWeekStart();
     next.setDate(next.getDate() + offset * 7);
     this.weekStart = this.dateToKey(next);
+    this.planEditPin = '';
+    this.cancelPlanUnlock();
     this.planMessage = '';
     void this.loadWeek();
   }
@@ -204,14 +226,27 @@ export class App {
   }
 
   async savePlan(): Promise<void> {
+    if (!this.isPlanDirty) {
+      this.planAccepted = true;
+      this.planEditPin = '';
+      this.planUnlockOpen = false;
+      this.planUnlockPin = '';
+      this.planMessage = 'Planen är fortsatt godkänd.';
+      this.refreshView();
+      return;
+    }
     this.planSaving = true;
     this.weekError = '';
     this.planMessage = '';
     try {
-      this.weeklyPlan = await this.recipesApi.saveWeeklyPlan(this.weekStart, this.planDraft);
-      this.savedRecipeIds = [...this.planDraft];
+      this.weeklyPlan = await this.recipesApi.saveWeeklyPlan(this.weekStart, this.planDraft, this.planEditPin || undefined);
+      this.savedRecipeIds = this.planDraft.map((meal) => ({ ...meal }));
+      this.planAccepted = true;
+      this.planEditPin = '';
+      this.planUnlockOpen = false;
+      this.planUnlockPin = '';
       this.shoppingList = null;
-      this.planMessage = 'Veckans middagar är sparade.';
+      this.planMessage = 'Veckans förslag är godkända.';
     } catch {
       this.weekError = 'Veckans val kunde inte sparas. Försök igen.';
     } finally {
@@ -220,26 +255,85 @@ export class App {
     }
   }
 
+  async unlockPlanEditing(): Promise<void> {
+    if (!/^\d{8,12}$/.test(this.planUnlockPin) || this.planUnlocking) return;
+    this.planUnlocking = true;
+    this.weekError = '';
+    try {
+      await this.recipesApi.unlockWeeklyPlan(this.planUnlockPin);
+      this.planEditPin = this.planUnlockPin;
+      this.planUnlockPin = '';
+      this.planUnlockOpen = false;
+      this.planAccepted = false;
+      this.planMessage = 'Planen är upplåst för ändringar.';
+    } catch {
+      this.weekError = 'PIN-koden kunde inte godkännas. Kontrollera den och försök igen.';
+    } finally {
+      this.planUnlocking = false;
+      this.refreshView();
+    }
+  }
+
+  cancelPlanUnlock(): void {
+    this.planUnlockOpen = false;
+    this.planUnlockPin = '';
+  }
+
+  async cancelPlanEditing(): Promise<void> {
+    this.planDraft = this.savedRecipeIds.map((entry) => ({ ...entry }));
+    this.planAccepted = true;
+    this.planEditPin = '';
+    this.planUnlockOpen = false;
+    this.planUnlockPin = '';
+    this.planMessage = '';
+    this.weekError = '';
+    if (this.weeklyPlan?.shoppingListId) {
+      try {
+        this.shoppingList = await this.recipesApi.getShoppingList(this.weeklyPlan.shoppingListId);
+      } catch {
+        this.shoppingList = null;
+      }
+    }
+    this.refreshView();
+  }
+
   randomizeWeek(): void {
     if (!this.recipes.length) return;
-    const pool = [...this.recipes];
-    for (let index = pool.length - 1; index > 0; index -= 1) {
-      const target = Math.floor(Math.random() * (index + 1));
-      [pool[index], pool[target]] = [pool[target], pool[index]];
-    }
-    let previousChoice: string | null = null;
-    this.planDraft = Array.from({ length: 7 }, (_, day) => {
-      let choice = pool[day % pool.length];
-      if (pool.length > 1 && choice.id === previousChoice) choice = pool[(day + 1) % pool.length];
-      previousChoice = choice.id;
-      return choice.id;
-    });
+    const picked: PlanEntry[] = [];
+    const used = new Set<string>();
+    const choose = (predicate: (recipe: Recipe) => boolean, type: MealType, score: (recipe: Recipe) => number = () => 0): boolean => {
+      const candidates = this.recipes.filter((recipe) => !used.has(recipe.id) && predicate(recipe));
+      if (!candidates.length) return false;
+      const topScore = Math.max(...candidates.map(score));
+      const bestCandidates = candidates.filter((recipe) => score(recipe) === topScore);
+      const recipe = bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+      used.add(recipe.id);
+      picked.push({ recipeId: recipe.id, type, eaten: false });
+      return true;
+    };
+    const categoryNeeds: [Recipe['foodType'][], number][] = [
+      [['chicken'], this.preferences.chicken], [['meat'], this.preferences.meat], [['fish'], this.preferences.fish], [['vegetarian', 'vegan'], this.preferences.vegetarian],
+    ];
+    const dinnersAlready = () => picked.filter((entry) => entry.type === 'dinner').length;
+    const easyAlready = () => picked.filter((entry) => entry.type === 'dinner' && this.recipeFor(entry)?.difficulty === 'easy').length;
+    const kidAlready = () => picked.filter((entry) => entry.type === 'dinner' && this.recipeFor(entry)?.kidFriendly).length;
+    const favoriteAlready = () => picked.filter((entry) => this.recipeFor(entry)?.favorite).length;
+    const metadataScore = (recipe: Recipe) => Number(recipe.difficulty === 'easy' && easyAlready() < this.preferences.easy) + Number(recipe.kidFriendly && kidAlready() < this.preferences.kidFriendly) + Number(recipe.favorite && favoriteAlready() < this.preferences.favorites);
+    for (const [types, count] of categoryNeeds) for (let i = 0; i < count && dinnersAlready() < this.preferences.dinners; i++) choose((recipe) => recipe.mealKind === 'dinner' && types.includes(recipe.foodType), 'dinner', metadataScore);
+    while (dinnersAlready() < this.preferences.dinners && choose((recipe) => recipe.mealKind === 'dinner', 'dinner', metadataScore)) { /* fill requested dinner count */ }
+    for (let i = 0; i < this.preferences.lunch; i++) choose((recipe) => recipe.mealKind === 'lunch', 'lunch');
+    while (easyAlready() < this.preferences.easy && dinnersAlready() < this.preferences.dinners && choose((recipe) => recipe.mealKind === 'dinner' && recipe.difficulty === 'easy', 'dinner', metadataScore)) { /* meet overlapping metadata preference */ }
+    while (kidAlready() < this.preferences.kidFriendly && dinnersAlready() < this.preferences.dinners && choose((recipe) => recipe.mealKind === 'dinner' && recipe.kidFriendly, 'dinner', metadataScore)) { /* meet overlapping metadata preference */ }
+    this.planDraft = picked;
+    this.planAccepted = false;
     this.shoppingList = null;
     this.planMessage = '';
+    this.weekError = '';
   }
 
   clearWeek(): void {
-    this.planDraft = Array(7).fill(null);
+    this.planDraft = [];
+    this.planAccepted = false;
     this.shoppingList = null;
     this.planMessage = '';
   }
@@ -277,8 +371,71 @@ export class App {
     }
   }
 
-  selectedRecipe(day: number): Recipe | undefined {
-    return this.recipes.find((recipe) => recipe.id === this.planDraft[day]);
+  recipeFor(entry: PlanEntry): Recipe | undefined {
+    return this.recipes.find((recipe) => recipe.id === entry.recipeId);
+  }
+
+  adjustPreference(key: keyof typeof this.preferences, amount: number): void {
+    const maximum = key === 'dinners' ? 14 : 7;
+    this.preferences[key] = Math.max(0, Math.min(maximum, this.preferences[key] + amount));
+  }
+
+  removePlanEntry(index: number): void {
+    this.planDraft.splice(index, 1);
+    this.shoppingList = null;
+    this.planMessage = '';
+  }
+
+  async toggleMealEaten(index: number): Promise<void> {
+    const entry = this.planDraft[index];
+    if (!entry || !this.planAccepted || this.eatenUpdatingIndex !== null) return;
+    const previous = entry.eaten;
+    entry.eaten = !previous;
+    this.eatenUpdatingIndex = index;
+    this.weekError = '';
+    this.refreshView();
+    try {
+      await this.recipesApi.setWeeklyMealEaten(this.weekStart, index, entry.eaten);
+      this.savedRecipeIds[index] = { ...entry };
+    } catch {
+      entry.eaten = previous;
+      this.weekError = 'Avbockningen kunde inte sparas. Försök igen.';
+    } finally {
+      this.eatenUpdatingIndex = null;
+      this.refreshView();
+    }
+  }
+
+  togglePlanEntryType(index: number): void {
+    this.randomizeEntry(index);
+  }
+
+  randomizeEntry(index: number): void {
+    const entry = this.planDraft[index];
+    if (!entry) return;
+    const candidates = this.recipes.filter((recipe) => recipe.mealKind === entry.type && !this.planDraft.some((item, itemIndex) => itemIndex !== index && item.recipeId === recipe.id));
+    if (!candidates.length) {
+      this.weekError = `Inga fler ${entry.type === 'lunch' ? 'lunchrecept' : 'middagsrecept'} att föreslå.`;
+      return;
+    }
+    const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+    this.planDraft[index] = { recipeId: replacement.id, type: replacement.mealKind, eaten: false };
+    this.shoppingList = null;
+    this.planMessage = '';
+    this.weekError = '';
+  }
+
+  addLunchSuggestion(): void {
+    const candidate = this.recipes.filter((recipe) => recipe.mealKind === 'lunch' && !this.planDraft.some((entry) => entry.recipeId === recipe.id));
+    if (!candidate.length) {
+      this.weekError = 'Lägg till fler lunchrecept i kokboken för att kunna välja en lunch.';
+      return;
+    }
+    const recipe = candidate[Math.floor(Math.random() * candidate.length)];
+    this.planDraft.push({ recipeId: recipe.id, type: 'lunch', eaten: false });
+    this.shoppingList = null;
+    this.planMessage = '';
+    this.weekError = '';
   }
 
   get filteredRecipes(): Recipe[] {
@@ -325,6 +482,7 @@ export class App {
     this.editingRecipeId = recipe.id;
     this.recipeForm = {
       title: recipe.title, description: recipe.description, prepMinutes: recipe.prepMinutes,
+      mealKind: recipe.mealKind,
       cookMinutes: recipe.cookMinutes, servings: recipe.servings, foodType: recipe.foodType,
       difficulty: recipe.difficulty, favorite: recipe.favorite, kidFriendly: recipe.kidFriendly,
       ingredients: recipe.ingredients.map(({ name, amount, unit, sectionCode }) => ({ name, amount, unit, sectionCode })),
@@ -334,19 +492,80 @@ export class App {
     this.screen = 'new-recipe';
   }
 
+  async confirmRecipe(recipe: Recipe): Promise<void> {
+    if (recipe.confirmed || this.confirmingRecipeId) return;
+    this.confirmingRecipeId = recipe.id;
+    this.recipesError = '';
+    try {
+      const updated = await this.recipesApi.setRecipeConfirmation(recipe.id, true);
+      this.updateRecipe(updated);
+    } catch {
+      this.recipesError = 'Receptet kunde inte markeras som kontrollerat. Försök igen.';
+    } finally {
+      this.confirmingRecipeId = null;
+      this.refreshView();
+    }
+  }
+
+  requestRecipeEdit(recipe: Recipe): void {
+    this.recipesError = '';
+    this.recipeEditPin = '';
+    this.recipeEditPinOpen = recipe.confirmed;
+    if (!recipe.confirmed) this.editRecipe(recipe);
+  }
+
+  cancelRecipeEditUnlock(): void {
+    this.recipeEditPinOpen = false;
+    this.recipeEditPin = '';
+  }
+
+  async unlockRecipeEditing(recipe: Recipe): Promise<void> {
+    if (!/^\d{8,12}$/.test(this.recipeEditPin) || this.recipeUnlocking) return;
+    this.recipeUnlocking = true;
+    this.recipesError = '';
+    try {
+      const unlocked = await this.recipesApi.setRecipeConfirmation(recipe.id, false, this.recipeEditPin);
+      this.updateRecipe(unlocked);
+      this.cancelRecipeEditUnlock();
+      this.editRecipe(unlocked);
+    } catch {
+      this.recipesError = 'Receptet kunde inte låsas upp. Kontrollera PIN-koden och försök igen.';
+    } finally {
+      this.recipeUnlocking = false;
+      this.refreshView();
+    }
+  }
+
+  private updateRecipe(updated: Recipe): void {
+    this.recipes = this.recipes.map((recipe) => recipe.id === updated.id ? updated : recipe);
+    if (this.selectedRecipeDetail?.id === updated.id) this.selectedRecipeDetail = updated;
+  }
+
+  requestRecipeDeletion(recipe: Recipe): void {
+    this.deleteConfirmationRecipeId = recipe.id;
+    this.deleteRecipePin = '';
+    this.recipesError = '';
+  }
+
+  cancelRecipeDeletion(): void {
+    this.deleteConfirmationRecipeId = null;
+    this.deleteRecipePin = '';
+  }
+
   async deleteRecipe(recipe: Recipe): Promise<void> {
-    if (!window.confirm(`Ta bort receptet "${recipe.title}"?`)) return;
+    if (this.deleteConfirmationRecipeId !== recipe.id || !/^\d{8,12}$/.test(this.deleteRecipePin)) return;
     this.deletingRecipeId = recipe.id;
     try {
-      await this.recipesApi.deleteRecipe(recipe.id);
+      await this.recipesApi.deleteRecipe(recipe.id, this.deleteRecipePin);
       this.recipes = this.recipes.filter((entry) => entry.id !== recipe.id);
       this.selectedRecipeDetail = null;
-      this.planDraft = this.planDraft.map((id) => id === recipe.id ? null : id);
+      this.planDraft = this.planDraft.filter((entry) => entry.recipeId !== recipe.id);
+      this.cancelRecipeDeletion();
       this.screen = 'collection';
       this.refreshView();
       await this.loadWeek();
     } catch {
-      this.recipesError = 'Receptet kunde inte tas bort. Försök igen.';
+      this.recipesError = 'Receptet kunde inte tas bort. Kontrollera PIN-koden och försök igen.';
     } finally {
       this.deletingRecipeId = null;
       this.refreshView();
@@ -372,7 +591,11 @@ export class App {
   }
 
   foodLabel(type: Recipe['foodType']): string {
-    return ({ meat: 'Kött', fish: 'Fisk', vegetarian: 'Vegetariskt', vegan: 'Veganskt', other: 'Övrigt' })[type];
+    return ({ meat: 'Kött', chicken: 'Kyckling', fish: 'Fisk', vegetarian: 'Vegetariskt', vegan: 'Veganskt', other: 'Övrigt' })[type];
+  }
+
+  foodIcon(type: Recipe['foodType']): string {
+    return ({ meat: '🥩', chicken: '🍗', fish: '🐟', vegetarian: '🌿', vegan: '🌱', other: '🍽' })[type];
   }
 
   async saveRecipe(): Promise<void> {

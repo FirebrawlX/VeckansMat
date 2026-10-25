@@ -62,16 +62,37 @@ async function handleApi(request, env, url) {
     return saveRecipe(env.DB, recipe);
   }
 
+  const recipeConfirmationMatch = url.pathname.match(/^\/api\/recipes\/([\w-]+)\/confirmation$/);
+  if (recipeConfirmationMatch && request.method === 'PATCH') {
+    const body = await readBody(request);
+    if (typeof body.confirmed !== 'boolean') return json({ error: 'Choose a valid recipe confirmation state.' }, 400);
+    if (!body.confirmed) {
+      const pinError = await checkFamilyPin(request, env, body.pin);
+      if (pinError) return pinError;
+    }
+    const result = await env.DB.prepare('UPDATE recipes SET confirmed = ? WHERE id = ?').bind(Number(body.confirmed), recipeConfirmationMatch[1]).run();
+    if (!result.meta.changes) return json({ error: 'Recipe not found.' }, 404);
+    return getRecipe(env.DB, recipeConfirmationMatch[1]);
+  }
+
   const recipeMatch = url.pathname.match(/^\/api\/recipes\/([\w-]+)$/);
   if (recipeMatch && request.method === 'GET') return getRecipe(env.DB, recipeMatch[1]);
   if (recipeMatch && request.method === 'PUT') {
     const body = await readBody(request);
+    const existingRecipe = await env.DB.prepare('SELECT confirmed FROM recipes WHERE id = ?').bind(recipeMatch[1]).first();
+    if (existingRecipe?.confirmed) {
+      const pinError = await checkFamilyPin(request, env, body.pin);
+      if (pinError) return pinError;
+    }
     const recipe = normalizeRecipe(body);
     if (!recipe) return json({ error: 'Enter a recipe title and valid recipe details.' }, 400);
     await resolveRecipeSections(env.DB, recipe.ingredients);
     return saveRecipe(env.DB, recipe, recipeMatch[1]);
   }
   if (recipeMatch && request.method === 'DELETE') {
+    const body = await readBody(request);
+    const pinError = await checkFamilyPin(request, env, body.pin);
+    if (pinError) return pinError;
     await env.DB.prepare('DELETE FROM recipes WHERE id = ?').bind(recipeMatch[1]).run();
     return json({ deleted: true });
   }
@@ -81,32 +102,57 @@ async function handleApi(request, env, url) {
     if (!isWeekStart(weekStart)) return json({ error: 'Choose a valid Monday for the week.' }, 400);
     return getWeeklyPlan(env.DB, weekStart);
   }
+  if (url.pathname === '/api/weekly-plan/unlock' && request.method === 'POST') {
+    const body = await readBody(request);
+    const pinError = await checkFamilyPin(request, env, body.pin);
+    return pinError ?? json({ unlocked: true });
+  }
   if (url.pathname === '/api/weekly-plan' && request.method === 'PUT') {
     const body = await readBody(request);
     const weekStart = cleanText(body.weekStart, 10);
-    if (!isWeekStart(weekStart) || !Array.isArray(body.recipeIds) || body.recipeIds.length !== 7) {
-      return json({ error: 'A week and seven dinner choices are required.' }, 400);
+    if (!isWeekStart(weekStart) || !Array.isArray(body.meals) || body.meals.length > 21) {
+      return json({ error: 'A valid week and up to 21 meal suggestions are required.' }, 400);
     }
-    const recipeIds = body.recipeIds.map((id) => typeof id === 'string' && id ? id : null);
-    if (body.recipeIds.some((id, index) => id !== null && recipeIds[index] === null)) {
+    const existingPlan = await env.DB.prepare('SELECT week_start FROM weekly_plans WHERE week_start = ?').bind(weekStart).first();
+    if (existingPlan) {
+      const pinError = await checkFamilyPin(request, env, body.pin);
+      if (pinError) return pinError;
+    }
+    const meals = body.meals.map((meal) => ({ recipeId: meal?.recipeId, type: meal?.type, eaten: meal?.eaten }));
+    if (meals.some((meal) => typeof meal.recipeId !== 'string' || !meal.recipeId || !['dinner', 'lunch'].includes(meal.type) || (meal.eaten !== undefined && typeof meal.eaten !== 'boolean'))) {
       return json({ error: 'One or more recipe choices are invalid.' }, 400);
     }
-    const selectedIds = [...new Set(recipeIds.filter(Boolean))];
+    const selectedIds = [...new Set(meals.map((meal) => meal.recipeId))];
+    if (selectedIds.length !== meals.length) return json({ error: 'A recipe can only appear once in the weekly bank.' }, 400);
     if (selectedIds.length) {
       const placeholders = selectedIds.map(() => '?').join(',');
-      const { results } = await env.DB.prepare(`SELECT id FROM recipes WHERE id IN (${placeholders})`).bind(...selectedIds).all();
+      const { results } = await env.DB.prepare(`SELECT id, meal_kind FROM recipes WHERE id IN (${placeholders})`).bind(...selectedIds).all();
       if (results.length !== selectedIds.length) return json({ error: 'One or more selected recipes no longer exist.' }, 400);
+      const mealKinds = new Map(results.map((recipe) => [recipe.id, recipe.meal_kind]));
+      if (meals.some((meal) => meal.type !== mealKinds.get(meal.recipeId))) return json({ error: 'A recipe cannot be changed between lunch and dinner in the weekly bank.' }, 400);
     }
     const statements = [
       env.DB.prepare(`INSERT INTO weekly_plans (week_start, updated_at, shopping_list_id) VALUES (?, ?, NULL)
         ON CONFLICT(week_start) DO UPDATE SET updated_at = excluded.updated_at, shopping_list_id = NULL`)
         .bind(weekStart, Date.now()),
       env.DB.prepare('DELETE FROM weekly_plan_meals WHERE week_start = ?').bind(weekStart),
-      ...recipeIds.map((recipeId, day) => env.DB.prepare(
-        'INSERT INTO weekly_plan_meals (week_start, day_of_week, recipe_id) VALUES (?, ?, ?)',
-      ).bind(weekStart, day, recipeId)),
+      ...meals.map((meal, position) => env.DB.prepare(
+        'INSERT INTO weekly_plan_meals (week_start, position, recipe_id, meal_type, eaten) VALUES (?, ?, ?, ?, ?)',
+      ).bind(weekStart, position, meal.recipeId, meal.type, Number(meal.eaten === true))),
     ];
     await env.DB.batch(statements);
+    return getWeeklyPlan(env.DB, weekStart);
+  }
+  if (url.pathname === '/api/weekly-plan/meal' && request.method === 'PATCH') {
+    const body = await readBody(request);
+    const weekStart = cleanText(body.weekStart, 10);
+    if (!isWeekStart(weekStart) || !Number.isInteger(body.position) || body.position < 0 || body.position > 20 || typeof body.eaten !== 'boolean') {
+      return json({ error: 'Choose a valid planned meal and eaten state.' }, 400);
+    }
+    const meal = await env.DB.prepare('SELECT position FROM weekly_plan_meals WHERE week_start = ? AND position = ?').bind(weekStart, body.position).first();
+    if (!meal) return json({ error: 'Planned meal not found.' }, 404);
+    await env.DB.prepare('UPDATE weekly_plan_meals SET eaten = ? WHERE week_start = ? AND position = ?')
+      .bind(Number(body.eaten), weekStart, body.position).run();
     return getWeeklyPlan(env.DB, weekStart);
   }
   if (url.pathname === '/api/weekly-plan/shopping-list' && request.method === 'POST') {
@@ -225,21 +271,41 @@ function isWeekStart(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && date.getUTCDay() === 1;
 }
 
+async function checkFamilyPin(request, env, candidate) {
+  if (!env.FAMILY_PIN || !/^\d{8,12}$/.test(env.FAMILY_PIN)) {
+    return json({ error: 'The family PIN has not been configured correctly.' }, 503);
+  }
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'local';
+  const now = Date.now();
+  await env.DB.prepare('DELETE FROM pin_attempts WHERE window_started <= ?').bind(now - PIN_WINDOW_MS).run();
+  const attempt = await env.DB.prepare('SELECT window_started, attempts FROM pin_attempts WHERE ip = ?').bind(ip).first();
+  const inWindow = attempt && now - attempt.window_started < PIN_WINDOW_MS;
+  if (inWindow && attempt.attempts >= PIN_ATTEMPT_LIMIT) {
+    return json({ error: 'Too many attempts. Try again in 15 minutes.' }, 429);
+  }
+  if (typeof candidate !== 'string' || !/^\d{8,12}$/.test(candidate) || !constantTimeEqual(candidate, env.FAMILY_PIN)) {
+    const startedAt = inWindow ? attempt.window_started : now;
+    await env.DB.prepare(`INSERT INTO pin_attempts (ip, window_started, attempts) VALUES (?, ?, 1)
+      ON CONFLICT(ip) DO UPDATE SET window_started = excluded.window_started,
+      attempts = CASE WHEN pin_attempts.window_started = excluded.window_started THEN pin_attempts.attempts + 1 ELSE 1 END`)
+      .bind(ip, startedAt).run();
+    return json({ error: 'That PIN is not correct.' }, 401);
+  }
+  await env.DB.prepare('DELETE FROM pin_attempts WHERE ip = ?').bind(ip).run();
+  return null;
+}
+
 async function getWeeklyPlan(db, weekStart) {
-  const { results } = await db.prepare(`SELECT m.day_of_week, m.recipe_id, r.title AS recipe_title
+  const { results } = await db.prepare(`SELECT m.position, m.recipe_id, m.meal_type, m.eaten, r.title AS recipe_title
     FROM weekly_plan_meals m LEFT JOIN recipes r ON r.id = m.recipe_id
-    WHERE m.week_start = ? ORDER BY m.day_of_week`).bind(weekStart).all();
-  const plan = new Map(results.map((meal) => [meal.day_of_week, meal]));
+    WHERE m.week_start = ? ORDER BY m.position`).bind(weekStart).all();
   const saved = await db.prepare('SELECT updated_at, shopping_list_id FROM weekly_plans WHERE week_start = ?')
     .bind(weekStart).first();
   return json({
     weekStart,
     updatedAt: saved?.updated_at ?? null,
     shoppingListId: saved?.shopping_list_id ?? null,
-    meals: Array.from({ length: 7 }, (_, day) => {
-      const meal = plan.get(day);
-      return { day, recipeId: meal?.recipe_title ? meal.recipe_id : null, recipeTitle: meal?.recipe_title ?? null };
-    }),
+    meals: results.filter((meal) => meal.recipe_title).map((meal) => ({ day: meal.position, recipeId: meal.recipe_id, recipeTitle: meal.recipe_title, type: meal.meal_type, eaten: Boolean(meal.eaten) })),
   });
 }
 
@@ -425,7 +491,7 @@ async function createWeeklyShoppingList(db, weekStart, regenerate = false) {
     if (existing) return json(existing);
   }
   const selected = await db.prepare(`SELECT recipe_id FROM weekly_plan_meals
-    WHERE week_start = ? AND recipe_id IS NOT NULL ORDER BY day_of_week`).bind(weekStart).all();
+    WHERE week_start = ? AND recipe_id IS NOT NULL ORDER BY position`).bind(weekStart).all();
   if (!selected.results.length) return json({ error: 'Choose at least one dinner before making a shopping list.' }, 400);
   const ingredientCount = await db.prepare(`SELECT COUNT(*) AS count FROM weekly_plan_meals m
     JOIN recipe_ingredients ri ON ri.recipe_id = m.recipe_id
@@ -482,7 +548,7 @@ function normalizeRecipe(body) {
     position: index,
   }));
   if (ingredients.some((item) => !item.name) || steps.some((item) => !item.instruction)) return null;
-  const allowedTypes = new Set(['meat', 'fish', 'vegetarian', 'vegan', 'other']);
+  const allowedTypes = new Set(['meat', 'chicken', 'fish', 'vegetarian', 'vegan', 'other']);
   const allowedDifficulties = new Set(['easy', 'medium', 'hard']);
   const intOrNull = (value) => Number.isInteger(value) && value >= 0 && value <= 1440 ? value : null;
   return {
@@ -492,6 +558,7 @@ function normalizeRecipe(body) {
     cookMinutes: intOrNull(body.cookMinutes),
     servings: Number.isInteger(body.servings) && body.servings > 0 && body.servings <= 100 ? body.servings : null,
     foodType: allowedTypes.has(body.foodType) ? body.foodType : 'other',
+    mealKind: body.mealKind === 'lunch' ? 'lunch' : 'dinner',
     difficulty: allowedDifficulties.has(body.difficulty) ? body.difficulty : 'medium',
     favorite: body.favorite === true,
     kidFriendly: body.kidFriendly === true,
@@ -527,17 +594,18 @@ async function saveRecipe(db, recipe, existingId = null) {
   const existing = existingId ? await db.prepare('SELECT created_at FROM recipes WHERE id = ?').bind(existingId).first() : null;
   if (existingId && !existing) return json({ error: 'Recipe not found.' }, 404);
   const statements = [db.prepare(`INSERT INTO recipes
-    (id, title, description, prep_minutes, cook_minutes, servings, food_type, difficulty, favorite, kid_friendly, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, title, description, prep_minutes, cook_minutes, servings, food_type, food_category, meal_kind, difficulty, favorite, kid_friendly, confirmed, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description,
     prep_minutes=excluded.prep_minutes, cook_minutes=excluded.cook_minutes, servings=excluded.servings,
-    food_type=excluded.food_type, difficulty=excluded.difficulty, favorite=excluded.favorite,
-    kid_friendly=excluded.kid_friendly, updated_at=excluded.updated_at`)
+    food_type=excluded.food_type, food_category=excluded.food_category, meal_kind=excluded.meal_kind, difficulty=excluded.difficulty, favorite=excluded.favorite,
+    kid_friendly=excluded.kid_friendly, confirmed=0, updated_at=excluded.updated_at`)
     .bind(id, recipe.title, recipe.description, recipe.prepMinutes, recipe.cookMinutes, recipe.servings,
-      recipe.foodType, recipe.difficulty, Number(recipe.favorite), Number(recipe.kidFriendly), existing?.created_at ?? now, now)];
+      recipe.foodType === 'chicken' ? 'meat' : recipe.foodType, recipe.foodType, recipe.mealKind, recipe.difficulty, Number(recipe.favorite), Number(recipe.kidFriendly), existing?.created_at ?? now, now)];
   if (existingId) {
     statements.push(db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id = ?').bind(id));
     statements.push(db.prepare('DELETE FROM recipe_steps WHERE recipe_id = ?').bind(id));
+    statements.push(db.prepare('UPDATE weekly_plan_meals SET meal_type = ? WHERE recipe_id = ?').bind(recipe.mealKind, id));
   }
   const ingredientRows = recipe.ingredients.map((ingredient) => ({ ...ingredient, id: crypto.randomUUID() }));
   const stepRows = recipe.steps.map((step) => ({ ...step, id: crypto.randomUUID() }));
@@ -559,9 +627,11 @@ async function saveRecipe(db, recipe, existingId = null) {
     cookMinutes: recipe.cookMinutes,
     servings: recipe.servings,
     foodType: recipe.foodType,
+    mealKind: recipe.mealKind,
     difficulty: recipe.difficulty,
     favorite: recipe.favorite,
     kidFriendly: recipe.kidFriendly,
+    confirmed: false,
     ingredients: ingredientRows,
     steps: stepRows,
     createdAt: existing?.created_at ?? now,
@@ -676,7 +746,7 @@ async function refreshDuplicateWeeklyItems(db, listId, list) {
 async function getWeeklyIngredients(db, weekStart) {
   const { results } = await db.prepare(`SELECT ri.name, ri.amount, ri.unit, ri.section_code AS sectionCode
     FROM weekly_plan_meals m JOIN recipe_ingredients ri ON ri.recipe_id = m.recipe_id
-    WHERE m.week_start = ? AND m.recipe_id IS NOT NULL ORDER BY m.day_of_week, ri.position`)
+    WHERE m.week_start = ? AND m.recipe_id IS NOT NULL ORDER BY m.position, ri.position`)
     .bind(weekStart).all();
   const memory = await loadIngredientSectionMemory(db);
   return results.map((ingredient) => ({ ...ingredient, sectionCode: ingredient.sectionCode || memory.get(ingredientKey(ingredient.name)) || '' }));
@@ -753,10 +823,12 @@ function toRecipe(recipe, ingredients, steps) {
     prepMinutes: recipe.prep_minutes,
     cookMinutes: recipe.cook_minutes,
     servings: recipe.servings,
-    foodType: recipe.food_type,
+    foodType: recipe.food_category ?? recipe.food_type,
+    mealKind: recipe.meal_kind ?? 'dinner',
     difficulty: recipe.difficulty,
     favorite: Boolean(recipe.favorite),
     kidFriendly: Boolean(recipe.kid_friendly),
+    confirmed: Boolean(recipe.confirmed),
     ingredients: ingredients.filter((item) => item.recipe_id === recipe.id).map((item) => ({
       id: item.id, name: item.name, amount: item.amount, unit: item.unit, position: item.position, sectionCode: item.section_code ?? '',
     })),

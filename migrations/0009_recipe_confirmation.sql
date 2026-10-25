@@ -1,0 +1,1 @@
+ALTER TABLE recipes ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0 CHECK (confirmed IN (0, 1));

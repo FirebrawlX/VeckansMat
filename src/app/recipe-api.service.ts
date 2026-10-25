@@ -13,11 +13,12 @@ export interface RecipeIngredient {
 
 export interface RecipeDraft {
   title: string;
+  mealKind: 'dinner' | 'lunch';
   description: string;
   prepMinutes: number | null;
   cookMinutes: number | null;
   servings: number | null;
-  foodType: 'meat' | 'fish' | 'vegetarian' | 'vegan' | 'other';
+  foodType: 'meat' | 'chicken' | 'fish' | 'vegetarian' | 'vegan' | 'other';
   difficulty: 'easy' | 'medium' | 'hard';
   favorite: boolean;
   kidFriendly: boolean;
@@ -27,6 +28,7 @@ export interface RecipeDraft {
 
 export interface Recipe extends Omit<RecipeDraft, 'steps'> {
   id: string;
+  confirmed: boolean;
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
   createdAt: number;
@@ -65,6 +67,8 @@ export interface WeeklyMeal {
   day: number;
   recipeId: string | null;
   recipeTitle: string | null;
+  type: 'dinner' | 'lunch';
+  eaten: boolean;
 }
 
 export interface WeeklyPlan {
@@ -98,8 +102,16 @@ export class RecipeApiService {
     return firstValueFrom(this.http.get<WeeklyPlan>(`/api/weekly-plan?weekStart=${encodeURIComponent(weekStart)}`, { withCredentials: true }));
   }
 
-  saveWeeklyPlan(weekStart: string, recipeIds: (string | null)[]): Promise<WeeklyPlan> {
-    return firstValueFrom(this.http.put<WeeklyPlan>('/api/weekly-plan', { weekStart, recipeIds }, { withCredentials: true }));
+  saveWeeklyPlan(weekStart: string, meals: { recipeId: string; type: 'dinner' | 'lunch'; eaten?: boolean }[], pin?: string): Promise<WeeklyPlan> {
+    return firstValueFrom(this.http.put<WeeklyPlan>('/api/weekly-plan', { weekStart, meals, pin }, { withCredentials: true }));
+  }
+
+  unlockWeeklyPlan(pin: string): Promise<{ unlocked: true }> {
+    return firstValueFrom(this.http.post<{ unlocked: true }>('/api/weekly-plan/unlock', { pin }, { withCredentials: true }));
+  }
+
+  setWeeklyMealEaten(weekStart: string, position: number, eaten: boolean): Promise<WeeklyPlan> {
+    return firstValueFrom(this.http.patch<WeeklyPlan>('/api/weekly-plan/meal', { weekStart, position, eaten }, { withCredentials: true }));
   }
 
   createWeeklyShoppingList(weekStart: string, regenerate = false): Promise<ShoppingList> {
@@ -118,8 +130,12 @@ export class RecipeApiService {
     return firstValueFrom(this.http.put<Recipe>(`/api/recipes/${encodeURIComponent(id)}`, recipe, { withCredentials: true }));
   }
 
-  deleteRecipe(id: string): Promise<void> {
-    return firstValueFrom(this.http.delete<void>(`/api/recipes/${encodeURIComponent(id)}`, { withCredentials: true }));
+  setRecipeConfirmation(id: string, confirmed: boolean, pin?: string): Promise<Recipe> {
+    return firstValueFrom(this.http.patch<Recipe>(`/api/recipes/${encodeURIComponent(id)}/confirmation`, { confirmed, pin }, { withCredentials: true }));
+  }
+
+  deleteRecipe(id: string, pin: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/recipes/${encodeURIComponent(id)}`, { body: { pin }, withCredentials: true }));
   }
 
   getShoppingLists(): Promise<ShoppingList[]> {
