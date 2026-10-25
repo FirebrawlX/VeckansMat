@@ -1,0 +1,113 @@
+<main class="mx-auto min-h-screen max-w-7xl px-5 py-6 sm:px-8 lg:px-12">
+  <header class="flex items-center justify-between border-b border-border/70 pb-5">
+    <a class="flex items-center gap-3 font-semibold tracking-tight" href="/" aria-label="Veckans Mat startsida">
+      <span class="grid size-10 place-items-center rounded-2xl bg-primary text-xl text-primary-foreground" aria-hidden="true">🥕</span>
+      <span class="text-lg">Veckans<span class="text-primary">Mat</span></span>
+    </a>
+    <nav class="hidden items-center gap-8 text-sm font-medium text-muted-foreground sm:flex" aria-label="Huvudmeny">
+      <a class="text-foreground" href="#meny">Meny</a>
+      <a class="transition hover:text-foreground" href="#recept">Recept</a>
+      <a class="transition hover:text-foreground" href="#inkopslista">Inköpslista</a>
+    </nav>
+    <button hlmBtn variant="outline" class="rounded-full px-4" type="button">
+      Logga in
+    </button>
+  </header>
+
+  <section class="grid gap-10 py-12 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
+    <div>
+      <p class="mb-5 inline-flex items-center gap-2 rounded-full bg-accent/70 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-accent-foreground">
+        <span aria-hidden="true">✦</span> God mat, mindre stress
+      </p>
+      <h1 class="max-w-xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl">
+        Veckans middagar, <span class="text-primary">klara på ett kick.</span>
+      </h1>
+      <p class="mt-5 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg">
+        Samla favoritrecepten, planera veckan och få inköpslistan på köpet. Lite enklare vardag börjar här.
+      </p>
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a hlmBtn size="lg" class="h-auto rounded-full px-6 py-3" href="#meny">
+          Planera min vecka <span class="ml-2" aria-hidden="true">→</span>
+        </a>
+        <a hlmBtn variant="outline" size="lg" class="h-auto rounded-full px-6 py-3" href="#recept">
+          Utforska recept
+        </a>
+      </div>
+      <div class="mt-9 flex items-center gap-3 text-sm text-muted-foreground">
+        <span class="flex -space-x-2" aria-hidden="true">
+          <span class="grid size-8 place-items-center rounded-full border-2 border-background bg-orange-100">👩🏻‍🍳</span>
+          <span class="grid size-8 place-items-center rounded-full border-2 border-background bg-lime-100">🧑🏽‍🍳</span>
+          <span class="grid size-8 place-items-center rounded-full border-2 border-background bg-rose-100">👨🏼‍🍳</span>
+        </span>
+        <span><strong class="text-foreground">1 200+</strong> hemmakockar planerar smartare</span>
+      </div>
+    </div>
+
+    <div class="relative mx-auto w-full max-w-xl">
+      <div class="absolute -right-3 -top-5 size-28 rounded-full bg-amber-200/60 blur-2xl sm:-right-7 sm:-top-8 sm:size-40"></div>
+      <div class="absolute -bottom-6 -left-4 size-32 rounded-full bg-emerald-200/60 blur-2xl sm:-bottom-8 sm:-left-8 sm:size-44"></div>
+      <div class="relative overflow-hidden rounded-[2rem] border border-white/70 bg-card p-5 shadow-xl shadow-stone-900/5 sm:p-7">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Din planering</p>
+            <h2 class="mt-1 text-xl font-semibold tracking-tight">En smakrik vecka</h2>
+          </div>
+          <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">5 middagar</span>
+        </div>
+
+        <div class="mt-6 space-y-3" id="meny">
+          <article class="flex items-center gap-4 rounded-2xl bg-muted/70 p-3">
+            <div class="grid size-14 shrink-0 place-items-center rounded-xl bg-orange-100 text-3xl" aria-hidden="true">🍝</div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium text-muted-foreground">MÅNDAG · 25 MIN</p>
+              <h3 class="mt-0.5 truncate font-semibold">Krämig citronpasta</h3>
+            </div>
+            <span class="text-lg" aria-label="Vegetarisk">🌱</span>
+          </article>
+          <article class="flex items-center gap-4 rounded-2xl bg-muted/70 p-3">
+            <div class="grid size-14 shrink-0 place-items-center rounded-xl bg-rose-100 text-3xl" aria-hidden="true">🌮</div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium text-muted-foreground">TISDAG · 30 MIN</p>
+              <h3 class="mt-0.5 truncate font-semibold">Tacos med krispig halloumi</h3>
+            </div>
+            <span class="text-lg" aria-label="Vegetarisk">🌱</span>
+          </article>
+          <article class="flex items-center gap-4 rounded-2xl bg-muted/70 p-3">
+            <div class="grid size-14 shrink-0 place-items-center rounded-xl bg-amber-100 text-3xl" aria-hidden="true">🍲</div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium text-muted-foreground">ONSDAG · 40 MIN</p>
+              <h3 class="mt-0.5 truncate font-semibold">Mustig tomat- & linssoppa</h3>
+            </div>
+            <span class="text-lg" aria-label="Vegansk">🌿</span>
+          </article>
+        </div>
+
+        <a class="mt-5 flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground transition hover:border-primary/40 hover:text-primary" href="#inkopslista" id="inkopslista">
+          <span>🛒 <span class="ml-2">Inköpslistan är redo</span></span>
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+      <div class="absolute -bottom-5 right-5 rounded-2xl border border-white/70 bg-card px-4 py-3 shadow-lg sm:-right-4">
+        <p class="text-xs text-muted-foreground">Sparad tid den här veckan</p>
+        <p class="mt-0.5 font-semibold text-primary">Nästan 2 timmar ✨</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="border-t border-border/70 py-8" id="recept" aria-label="Fördelar">
+    <div class="grid gap-6 sm:grid-cols-3 sm:gap-4">
+      <div class="flex items-center gap-3">
+        <span class="grid size-11 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-xl" aria-hidden="true">📅</span>
+        <div><h2 class="text-sm font-semibold">Planera på ditt sätt</h2><p class="mt-0.5 text-sm text-muted-foreground">Flexibelt för hela familjen</p></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-xl" aria-hidden="true">🧺</span>
+        <div><h2 class="text-sm font-semibold">Handla utan krångel</h2><p class="mt-0.5 text-sm text-muted-foreground">En samlad lista, redo att gå</p></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="grid size-11 shrink-0 place-items-center rounded-2xl bg-rose-100 text-xl" aria-hidden="true">💚</span>
+        <div><h2 class="text-sm font-semibold">Mer av det goda</h2><p class="mt-0.5 text-sm text-muted-foreground">Recept som passar din vardag</p></div>
+      </div>
+    </div>
+  </section>
+</main>
