@@ -1,0 +1,2 @@
+# Local development only. Use a random 8–12 digit PIN.
+FAMILY_PIN=replace-with-a-private-8-to-12-digit-pin

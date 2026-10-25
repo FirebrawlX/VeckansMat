@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "veckansmat",
+  "main": "server/worker.js",
+  "compatibility_date": "2026-10-25",
+  "assets": {
+    "directory": "./dist/veckans-mat/browser",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "veckansmat",
+      "database_id": "4af72bff-5301-4cf0-8134-d83d72c9d318",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
