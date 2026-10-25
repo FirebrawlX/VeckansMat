@@ -7,6 +7,7 @@ export interface RecipeIngredient {
   name: string;
   amount: string;
   unit: string;
+  sectionCode?: string;
   position?: number;
 }
 
@@ -46,7 +47,10 @@ export interface ShoppingListItem {
   checked: boolean;
   recipeId: string | null;
   position: number;
+  sectionCode: string;
 }
+
+export interface StoreSection { code: string; name: string; position: number; }
 
 export interface ShoppingList {
   id: string;
@@ -54,6 +58,20 @@ export interface ShoppingList {
   createdAt: number;
   updatedAt: number;
   items: ShoppingListItem[];
+  sections?: StoreSection[];
+}
+
+export interface WeeklyMeal {
+  day: number;
+  recipeId: string | null;
+  recipeTitle: string | null;
+}
+
+export interface WeeklyPlan {
+  weekStart: string;
+  updatedAt: number | null;
+  shoppingListId: string | null;
+  meals: WeeklyMeal[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -64,8 +82,32 @@ export class RecipeApiService {
     return firstValueFrom(this.http.get<Recipe[]>('/api/recipes', { withCredentials: true }));
   }
 
+  getStoreSections(): Promise<StoreSection[]> {
+    return firstValueFrom(this.http.get<StoreSection[]>('/api/store-sections', { withCredentials: true }));
+  }
+
+  saveStoreSections(sections: StoreSection[]): Promise<StoreSection[]> {
+    return firstValueFrom(this.http.put<StoreSection[]>('/api/store-sections', { sections }, { withCredentials: true }));
+  }
+
   getRecipe(id: string): Promise<Recipe> {
     return firstValueFrom(this.http.get<Recipe>(`/api/recipes/${encodeURIComponent(id)}`, { withCredentials: true }));
+  }
+
+  getWeeklyPlan(weekStart: string): Promise<WeeklyPlan> {
+    return firstValueFrom(this.http.get<WeeklyPlan>(`/api/weekly-plan?weekStart=${encodeURIComponent(weekStart)}`, { withCredentials: true }));
+  }
+
+  saveWeeklyPlan(weekStart: string, recipeIds: (string | null)[]): Promise<WeeklyPlan> {
+    return firstValueFrom(this.http.put<WeeklyPlan>('/api/weekly-plan', { weekStart, recipeIds }, { withCredentials: true }));
+  }
+
+  createWeeklyShoppingList(weekStart: string, regenerate = false): Promise<ShoppingList> {
+    return firstValueFrom(this.http.post<ShoppingList>('/api/weekly-plan/shopping-list', { weekStart, regenerate }, { withCredentials: true }));
+  }
+
+  getShoppingList(id: string): Promise<ShoppingList> {
+    return firstValueFrom(this.http.get<ShoppingList>(`/api/shopping-lists/${encodeURIComponent(id)}`, { withCredentials: true }));
   }
 
   createRecipe(recipe: RecipeDraft): Promise<Recipe> {
@@ -104,7 +146,7 @@ export class RecipeApiService {
     return firstValueFrom(this.http.post<{ added: number }>(`/api/shopping-lists/${encodeURIComponent(listId)}/from-recipes`, { recipeIds }, { withCredentials: true }));
   }
 
-  updateShoppingItem(id: string, changes: Partial<Pick<ShoppingListItem, 'name' | 'amount' | 'unit' | 'checked'>>): Promise<ShoppingListItem> {
+  updateShoppingItem(id: string, changes: Partial<Pick<ShoppingListItem, 'name' | 'amount' | 'unit' | 'checked' | 'sectionCode'>>): Promise<ShoppingListItem> {
     return firstValueFrom(this.http.patch<ShoppingListItem>(`/api/shopping-list-items/${encodeURIComponent(id)}`, changes, { withCredentials: true }));
   }
 
