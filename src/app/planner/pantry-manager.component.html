@@ -1,0 +1,45 @@
+<section class="pantry-manager" aria-label="Basvaror till veckans inköpslista">
+  <button class="pantry-manager-toggle" type="button" (click)="togglePanel()" [attr.aria-expanded]="expanded">
+    <span class="pantry-manager-icon" aria-hidden="true">▤</span>
+    <span class="pantry-manager-copy"><strong>Basvaror varje vecka</strong><small>{{ message || (items.length ? items.length + ' sparade varor följer med nästa inköpslista' : 'Lägg till sådant ni vill ha varje vecka') }}</small></span>
+    <span class="pantry-manager-action">{{ expanded ? 'Dölj' : 'Hantera' }} <b aria-hidden="true">{{ expanded ? '−' : '＋' }}</b></span>
+  </button>
+
+  @if (expanded) {
+    <div class="pantry-manager-panel">
+      <p class="pantry-manager-intro">Här sparar ni varor som alltid ska finnas med. En ny vara läggs även till i veckans redan öppna inköpslista; namn- och mängdändringar gäller kommande listor.</p>
+      <form class="pantry-add-form" (ngSubmit)="add()">
+        <input class="text-input" name="pantryName" aria-label="Basvarans namn" placeholder="Till exempel kaffe" [(ngModel)]="draft.name" required>
+        <input class="text-input" name="pantryAmount" aria-label="Mängd" placeholder="Mängd" [(ngModel)]="draft.amount">
+        <input class="text-input" name="pantryUnit" aria-label="Enhet" placeholder="Enhet" [(ngModel)]="draft.unit">
+        <select class="text-input" name="pantrySection" aria-label="Butiksavdelning" [(ngModel)]="draft.sectionCode">
+          <option value="">Avdelning</option>
+          @for (section of sections; track section.code) { <option [value]="section.code">{{ section.name }}</option> }
+        </select>
+        <button class="button button-primary" type="submit" [disabled]="saving || !draft.name.trim()">{{ saving ? 'Sparar…' : 'Lägg till' }}</button>
+      </form>
+
+      @if (loading) { <p class="pantry-manager-note">Hämtar basvaror…</p> }
+      @if (error) { <p class="planner-alert" role="alert">{{ error }}</p> }
+      @if (message) { <p class="inline-success" role="status">✓ {{ message }}</p> }
+      @if (items.length) {
+        <div class="pantry-saved-list">
+          <p class="pantry-saved-heading">SPARADE BASVAROR</p>
+          @for (item of items; track item.id) {
+            <div class="pantry-saved-item">
+              <input class="text-input" [name]="'pantryName' + item.id" [attr.aria-label]="'Basvarans namn: ' + item.name" [(ngModel)]="item.name">
+              <input class="text-input" [name]="'pantryAmount' + item.id" aria-label="Mängd" placeholder="Mängd" [(ngModel)]="item.amount">
+              <input class="text-input" [name]="'pantryUnit' + item.id" aria-label="Enhet" placeholder="Enhet" [(ngModel)]="item.unit">
+              <select class="text-input" [name]="'pantrySection' + item.id" [attr.aria-label]="'Butiksavdelning för ' + item.name" [(ngModel)]="item.sectionCode">
+                <option value="">Avdelning</option>
+                @for (section of sections; track section.code) { <option [value]="section.code">{{ section.name }}</option> }
+              </select>
+              <button class="button button-soft" type="button" (click)="save(item)" [disabled]="savingId === item.id || !item.name.trim()">{{ savingId === item.id ? 'Sparar…' : 'Spara' }}</button>
+              <button class="pantry-remove" type="button" (click)="remove(item)" [disabled]="deletingId === item.id" [attr.aria-label]="'Ta bort basvaran ' + item.name">×</button>
+            </div>
+          }
+        </div>
+      } @else if (!loading) { <p class="pantry-manager-note">Listan är tom än. Lägg till en basvara så följer den med varje ny inköpslista.</p> }
+    </div>
+  }
+</section>

@@ -2,7 +2,8 @@ import { ChangeDetectorRef, Component, effect, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { AuthService } from './auth.service';
-import { RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, ShoppingListItem, StoreSection, PantryItem, WeeklyPlan } from './recipe-api.service';
+import { RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, ShoppingListItem, StoreSection, WeeklyPlan } from './recipe-api.service';
+import { PantryManagerComponent } from './planner/pantry-manager.component';
 
 const DAY_NAMES = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 type RecipeForm = RecipeDraft;
@@ -32,7 +33,7 @@ function emptyRecipe(): RecipeForm {
 }
 
 @Component({
-  imports: [...HlmButtonImports, FormsModule],
+  imports: [...HlmButtonImports, FormsModule, PantryManagerComponent],
   selector: 'app-root',
   templateUrl: './app.html',
 })
@@ -84,14 +85,6 @@ export class App {
   sectionError = '';
   sectionMessage = '';
   sectionSettingsOpen = false;
-  pantrySettingsOpen = false;
-  pantryItems: PantryItem[] = [];
-  pantryItemDraft = { name: '', amount: '', unit: '', sectionCode: '' };
-  pantryItemSaving = false;
-  savingPantryItemId: string | null = null;
-  deletingPantryItemId: string | null = null;
-  pantryError = '';
-  pantryMessage = '';
   deletingRecipeId: string | null = null;
   deleteConfirmationRecipeId: string | null = null;
   deleteRecipePin = '';
@@ -180,37 +173,20 @@ export class App {
   }
 
   async loadAppData(): Promise<void> {
-    await Promise.all([this.loadRecipes(), this.loadWeek(), this.loadStoreSections(), this.loadPantryItems()]);
+    await Promise.all([this.loadRecipes(), this.loadWeek(), this.loadStoreSections()]);
   }
 
   async loadStoreSections(): Promise<void> { try { this.storeSections = await this.recipesApi.getStoreSections(); this.sectionDraft = this.storeSections.map((section) => ({ ...section })); } catch { this.sectionError = 'Avdelningarna kunde inte hämtas.'; } finally { this.refreshView(); } }
-  async loadPantryItems(): Promise<void> { try { this.pantryItems = await this.recipesApi.getPantryItems(); } catch { this.pantryError = 'Basvarorna kunde inte hämtas.'; } finally { this.refreshView(); } }
 
-  async addPantryItem(): Promise<void> {
-    if (!this.pantryItemDraft.name.trim() || this.pantryItemSaving) return;
-    this.pantryItemSaving = true; this.pantryError = ''; this.pantryMessage = '';
+  async refreshShoppingListData(): Promise<void> {
+    if (!this.shoppingList) return;
     try {
-      const item = await this.recipesApi.addPantryItem({ name: this.pantryItemDraft.name.trim(), amount: this.pantryItemDraft.amount.trim(), unit: this.pantryItemDraft.unit.trim(), sectionCode: this.pantryItemDraft.sectionCode });
-      this.pantryItems = [...this.pantryItems, item]; this.pantryItemDraft = { name: '', amount: '', unit: '', sectionCode: '' }; this.pantryMessage = 'Basvaran är sparad och läggs till varje vecka.';
-    } catch { this.pantryError = 'Basvaran kunde inte sparas. Kontrollera namn och avdelning.'; }
-    finally { this.pantryItemSaving = false; this.refreshView(); }
-  }
-
-  async savePantryItem(item: PantryItem): Promise<void> {
-    this.savingPantryItemId = item.id; this.pantryError = ''; this.pantryMessage = '';
-    try {
-      const updated = await this.recipesApi.updatePantryItem(item.id, { name: item.name.trim(), amount: item.amount.trim(), unit: item.unit.trim(), sectionCode: item.sectionCode });
-      this.pantryItems = this.pantryItems.map((entry) => entry.id === item.id ? updated : entry); this.pantryMessage = 'Basvaran är uppdaterad.';
-    } catch { this.pantryError = 'Ändringen kunde inte sparas. Kontrollera namn och avdelning.'; }
-    finally { this.savingPantryItemId = null; this.refreshView(); }
-  }
-
-  async deletePantryItem(item: PantryItem): Promise<void> {
-    this.deletingPantryItemId = item.id; this.pantryError = ''; this.pantryMessage = '';
-    try {
-      await this.recipesApi.deletePantryItem(item.id); this.pantryItems = this.pantryItems.filter((entry) => entry.id !== item.id); this.pantryMessage = 'Basvaran är borttagen från basvarulistan.';
-    } catch { this.pantryError = 'Basvaran kunde inte tas bort. Försök igen.'; }
-    finally { this.deletingPantryItemId = null; this.refreshView(); }
+      this.shoppingList = await this.recipesApi.getShoppingList(this.shoppingList.id);
+    } catch {
+      this.shoppingItemError = 'Veckans inköpslista kunde inte uppdateras just nu.';
+    } finally {
+      this.refreshView();
+    }
   }
   addStoreSection(): void { const used = new Set(this.sectionDraft.map((s) => s.code)); const code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').find((letter) => !used.has(letter)); if (code) this.sectionDraft.push({ code, name: '', position: this.sectionDraft.length }); }
   moveStoreSection(index: number, offset: number): void { const target = index + offset; if (target < 0 || target >= this.sectionDraft.length) return; [this.sectionDraft[index], this.sectionDraft[target]] = [this.sectionDraft[target], this.sectionDraft[index]]; }
