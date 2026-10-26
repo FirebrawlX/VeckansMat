@@ -159,3 +159,41 @@
  .bank-card:not(.bank-card-eaten){min-height:96px}
  .bank-grid-accepted .bank-card{min-height:92px}
 }
+
+.bank-card:not(.bank-card-eaten) .bank-copy h3,
+.bank-grid-accepted .bank-copy h3{overflow-wrap:anywhere}
+.bank-food-icon{display:none}
+@media(max-width:620px){
+ .week-view{padding:22px 15px 20px}
+ .week-heading .eyebrow{margin-bottom:8px}
+ .week-heading h1{font-size:clamp(27px,8vw,34px)}
+ .week-heading .muted{margin-top:6px;font-size:11px;line-height:1.4}
+ .week-controls{margin-top:13px}
+ .bank-toolbar{margin:16px 0 9px}
+ .bank-toolbar h2{margin-top:2px;font-size:20px}
+ .bank-toolbar>div>p:last-child{margin:3px 0 0;font-size:9px}
+ .bank-toolbar-actions{gap:5px}
+ .bank-toolbar-actions .button{min-height:31px;padding:0 8px;font-size:9px}
+ .bank-grid,.bank-grid-accepted{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .bank-card:not(.bank-card-eaten){min-height:0;padding:8px;grid-template-columns:minmax(0,1fr) 22px 22px;grid-template-rows:1fr 22px;align-items:start;gap:5px;border-radius:10px}
+ .bank-card:not(.bank-card-eaten) .bank-art{display:none}
+ .bank-card:not(.bank-card-eaten) .bank-copy{grid-column:1/-1;grid-row:1;min-width:0;align-self:start}
+ .bank-card:not(.bank-card-eaten) .bank-copy .bank-type{margin-right:0;font-size:8px}
+ .bank-food-icon{display:inline;margin:0 2px 0 5px;font-size:10px}
+ .bank-card:not(.bank-card-eaten) .bank-food-type{font-size:8px}
+ .bank-card:not(.bank-card-eaten) .bank-copy h3{display:block;margin:4px 0 5px;overflow:visible;font-size:13px;line-height:1.18;-webkit-line-clamp:unset}
+ .bank-card:not(.bank-card-eaten) .bank-badges{min-height:0;gap:4px}
+ .bank-card:not(.bank-card-eaten) .bank-badges span{font-size:8px}
+ .bank-card:not(.bank-card-eaten) .bank-type-toggle,.bank-card:not(.bank-card-eaten) .bank-remove{grid-row:2;width:22px;height:22px;align-self:end}
+ .bank-card:not(.bank-card-eaten) .bank-type-toggle{grid-column:2}
+ .bank-card:not(.bank-card-eaten) .bank-remove{grid-column:3}
+ .bank-grid-accepted .bank-card{min-height:0;padding:8px;grid-template-columns:minmax(0,1fr) 23px;grid-template-rows:auto 1fr;align-items:start;gap:4px 5px;border-radius:10px}
+ .bank-meal-side{grid-column:1;grid-row:1;gap:0;flex-wrap:wrap;align-items:center}
+ .bank-meal-side .bank-type{font-size:8px;letter-spacing:.02em}
+ .bank-meal-side .bank-food-type{font-size:8px}
+ .bank-grid-accepted .bank-copy{grid-column:1/-1;grid-row:2;min-width:0}
+ .bank-grid-accepted .bank-copy h3{margin:0 0 5px;font-size:13px;line-height:1.18;overflow-wrap:anywhere}
+ .bank-badges{min-height:0;gap:4px}
+ .bank-badges span{font-size:8px}
+ .bank-grid-accepted .meal-eaten-toggle{grid-column:2;grid-row:1;width:23px;height:23px;min-width:23px;flex-basis:23px}
+}
