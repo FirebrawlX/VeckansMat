@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, HostBinding, Input, Output, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RecipeApiService, ShoppingList, StoreSection } from '../recipe-api.service';
 import { PantryApiService } from './pantry-api.service';
@@ -11,6 +11,11 @@ import { PantryItem } from './pantry.types';
   styleUrl: './pantry-manager.component.css',
 })
 export class PantryManagerComponent {
+  @HostBinding('class.pantry-manager-expanded')
+  get expandedClass(): boolean {
+    return this.expanded;
+  }
+
   @Input() sections: StoreSection[] = [];
   @Input() currentShoppingList: ShoppingList | null = null;
   @Output() shoppingListChanged = new EventEmitter<void>();
