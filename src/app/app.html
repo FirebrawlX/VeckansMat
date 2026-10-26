@@ -62,14 +62,13 @@
                     <article class="bank-card bank-card-eaten">
                       <div class="bank-meal-side">
                         <span class="bank-type">{{ recipe.mealKind === 'lunch' ? '☼ LUNCH' : '✳ MIDDAG' }}</span>
-                        <div class="bank-art" [class.art-fish]="recipe.foodType === 'fish'" [class.art-vegetarian]="recipe.foodType === 'vegetarian' || recipe.foodType === 'vegan'">{{ foodIcon(recipe.foodType) }}</div>
-                        <div class="bank-badges">
-                          @if (recipe.difficulty === 'easy') {<span title="Enkelt" aria-label="Enkelt">⚡</span>}
-                          @if (recipe.kidFriendly) {<span title="Barnvänligt" aria-label="Barnvänligt">☺</span>}
-                          @if (recipe.favorite) {<span title="Favorit" aria-label="Favorit">♥</span>}
-                        </div>
+                        <span class="bank-food-type">{{ foodLabel(recipe.foodType) }}</span>
                       </div>
-                      <h3 class="bank-meal-title">{{ recipe.title }}</h3>
+                      <div class="bank-copy"><h3 class="bank-meal-title">{{ recipe.title }}</h3><div class="bank-badges">
+                        @if (recipe.favorite) {<span title="Favorit" aria-label="Favorit">♥ Favorit</span>}
+                        @if (recipe.difficulty === 'easy') {<span title="Snabb och enkel" aria-label="Snabb och enkel">⚡ Snabb</span>}
+                        @if (recipe.kidFriendly) {<span title="Barnvänligt" aria-label="Barnvänligt">☺ Barnvänligt</span>}
+                      </div></div>
                       <button class="meal-eaten-toggle" type="button" (click)="toggleMealEaten(i)" [disabled]="eatenUpdatingIndex === i" [attr.aria-pressed]="entry.eaten" [attr.aria-label]="entry.eaten ? 'Markera ' + recipe.title + ' som inte äten' : 'Markera ' + recipe.title + ' som äten'" [title]="entry.eaten ? 'Markera som inte äten' : 'Markera som äten'"><span aria-hidden="true">{{ entry.eaten ? '✓' : '' }}</span></button>
                     </article>
                   } @else {
@@ -77,11 +76,12 @@
                       <div class="bank-art" [class.art-fish]="recipe.foodType === 'fish'" [class.art-vegetarian]="recipe.foodType === 'vegetarian' || recipe.foodType === 'vegan'">{{ foodIcon(recipe.foodType) }}</div>
                       <div class="bank-copy">
                         <span class="bank-type">{{ recipe.mealKind === 'lunch' ? '☼ LUNCH' : '✳ MIDDAG' }}</span>
+                        <span class="bank-food-type">{{ foodLabel(recipe.foodType) }}</span>
                         <h3>{{ recipe.title }}</h3>
                         <div class="bank-badges">
-                          @if (recipe.difficulty === 'easy') {<span title="Enkelt" aria-label="Enkelt">⚡</span>}
-                          @if (recipe.kidFriendly) {<span title="Barnvänligt" aria-label="Barnvänligt">☺</span>}
-                          @if (recipe.favorite) {<span title="Favorit" aria-label="Favorit">♥</span>}
+                          @if (recipe.favorite) {<span title="Favorit" aria-label="Favorit">♥ Favorit</span>}
+                          @if (recipe.difficulty === 'easy') {<span title="Snabb och enkel" aria-label="Snabb och enkel">⚡ Snabb</span>}
+                          @if (recipe.kidFriendly) {<span title="Barnvänligt" aria-label="Barnvänligt">☺ Barnvänligt</span>}
                         </div>
                       </div>
                       <button class="bank-type-toggle" type="button" (click)="randomizeEntry(i)" [attr.aria-label]="'Byt förslag för ' + recipe.title" title="Byt till ett annat förslag">↻</button>

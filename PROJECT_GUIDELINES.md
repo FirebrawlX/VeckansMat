@@ -7,6 +7,8 @@ Keep these requirements in view when changing VeckansMat.
 - Private family app for weekly dinner planning, recipes, and shopping lists.
 - The family-facing interface is Swedish; source code and project notes are English.
 - Mobile first: readable text, large touch targets, accessible labels, and clear save/error feedback.
+- Keep weekly meal cards compact on mobile. Do not stretch each meal card to the full screen width; preserve a dense layout that limits scrolling on the family's Xperia 5 V.
+- In planned meal cards, show the meal occasion (dinner or lunch) first, then the food category (meat, fish, vegetarian, vegan, or other), followed by preference traits such as favorite, quick, and child-friendly.
 - Prefer simple flows and preserve existing family data.
 
 ## How it works
