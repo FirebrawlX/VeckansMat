@@ -17,7 +17,7 @@ npm run db:remote
 npm run deploy
 ```
 
-Production currently has migrations through `0004_ingredient_section_memory.sql`. For future schema changes, add a numbered migration and apply it remotely before deploying code that depends on it.
+Production has migrations through `0010_pantry_items.sql` (applied 2026-10-26). For future schema changes, add a numbered migration and apply it remotely before deploying code that depends on it.
 
 ## Secrets and backups
 

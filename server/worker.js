@@ -41,12 +41,29 @@ async function handleApi(request, env, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/store-sections') return listStoreSections(env.DB);
+  if (request.method === 'GET' && url.pathname === '/api/pantry-items') return listPantryItems(env.DB);
+  if (request.method === 'POST' && url.pathname === '/api/pantry-items') return addPantryItem(request, env.DB);
   if (request.method === 'PUT' && url.pathname === '/api/store-sections') {
     const body = await readBody(request);
     if (!Array.isArray(body.sections) || body.sections.length < 1 || body.sections.length > 26) return json({ error: 'Enter at least one valid store section.' }, 400);
     const sections = body.sections.map((section, position) => ({ code: cleanText(section?.code, 4).toUpperCase(), name: cleanText(section?.name, 80), position }));
     if (sections.some((section) => !/^[A-Z]$/.test(section.code) || !section.name) || new Set(sections.map((section) => section.code)).size !== sections.length) return json({ error: 'Each section needs a unique letter and a name.' }, 400);
-    await env.DB.batch([env.DB.prepare('DELETE FROM store_sections'), ...sections.map((section) => env.DB.prepare('INSERT INTO store_sections (code, name, position) VALUES (?, ?, ?)').bind(section.code, section.name, section.position))]);
+    const [recipeSections, listSections, pantrySections, currentSections] = await Promise.all([
+      env.DB.prepare("SELECT DISTINCT section_code AS code FROM recipe_ingredients WHERE section_code != ''").all(),
+      env.DB.prepare("SELECT DISTINCT section_code AS code FROM shopping_list_items WHERE section_code != ''").all(),
+      env.DB.prepare("SELECT DISTINCT section_code AS code FROM pantry_items WHERE section_code != ''").all(),
+      env.DB.prepare('SELECT code FROM store_sections').all(),
+    ]);
+    const assignedCodes = new Set([...recipeSections.results, ...listSections.results, ...pantrySections.results].map((row) => row.code));
+    const submittedCodes = new Set(sections.map((section) => section.code));
+    if ([...assignedCodes].some((code) => !submittedCodes.has(code))) {
+      return json({ error: 'A store section is still assigned to ingredients. Move those ingredients to another section before removing it.' }, 409);
+    }
+    const removedCodes = currentSections.results.map((row) => row.code).filter((code) => !submittedCodes.has(code));
+    const statements = [env.DB.prepare('DELETE FROM store_sections')];
+    if (removedCodes.length) statements.push(env.DB.prepare(`DELETE FROM ingredient_section_memory WHERE section_code IN (${removedCodes.map(() => '?').join(',')})`).bind(...removedCodes));
+    statements.push(...sections.map((section) => env.DB.prepare('INSERT INTO store_sections (code, name, position) VALUES (?, ?, ?)').bind(section.code, section.name, section.position)));
+    await env.DB.batch(statements);
     return listStoreSections(env.DB);
   }
 
@@ -206,6 +223,13 @@ async function handleApi(request, env, url) {
   if (itemMatch && request.method === 'PATCH') return updateShoppingItem(request, env.DB, itemMatch[1]);
   if (itemMatch && request.method === 'DELETE') {
     await env.DB.prepare('DELETE FROM shopping_list_items WHERE id = ?').bind(itemMatch[1]).run();
+    return json({ deleted: true });
+  }
+
+  const pantryItemMatch = url.pathname.match(/^\/api\/pantry-items\/([\w-]+)$/);
+  if (pantryItemMatch && request.method === 'PATCH') return updatePantryItem(request, env.DB, pantryItemMatch[1]);
+  if (pantryItemMatch && request.method === 'DELETE') {
+    await env.DB.prepare('DELETE FROM pantry_items WHERE id = ?').bind(pantryItemMatch[1]).run();
     return json({ deleted: true });
   }
 
@@ -499,7 +523,23 @@ async function createWeeklyShoppingList(db, weekStart, regenerate = false) {
   if (!ingredientCount?.count) return json({ error: 'The selected recipes do not have any ingredients yet.' }, 400);
 
   const ingredients = await getWeeklyIngredients(db, weekStart);
-  const aggregatedIngredients = aggregateIngredients(ingredients);
+  const pantryItems = await getPantryItems(db);
+  const generatedIngredients = [...ingredients];
+  for (const pantryItem of pantryItems) {
+    const key = ingredientKey(pantryItem.name);
+    const existing = generatedIngredients.filter((item) => ingredientKey(item.name) === key);
+    if (existing.length && !pantryItem.amount && !pantryItem.unit) {
+      for (const item of existing) if (!item.sectionCode) item.sectionCode = pantryItem.sectionCode;
+      continue;
+    }
+    generatedIngredients.push(pantryItem);
+  }
+  const aggregatedIngredients = aggregateIngredients(generatedIngredients);
+  const previousChecks = new Map();
+  if (plan.shopping_list_id && regenerate) {
+    const existing = await getShoppingListData(db, plan.shopping_list_id);
+    for (const item of existing?.items ?? []) previousChecks.set(ingredientKey(item.name), item.checked);
+  }
   const id = plan.shopping_list_id && regenerate ? plan.shopping_list_id : crypto.randomUUID();
   const now = Date.now();
   const title = `Inköpslista vecka ${weekNumber(weekStart)}`;
@@ -514,8 +554,8 @@ async function createWeeklyShoppingList(db, weekStart, regenerate = false) {
   statements.push(
     ...aggregatedIngredients.map((ingredient, position) => db.prepare(`INSERT INTO shopping_list_items
       (id, list_id, name, amount, unit, checked, recipe_id, position, section_code)
-      VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)`)
-      .bind(crypto.randomUUID(), id, ingredient.name, ingredient.amount, ingredient.unit, position, ingredient.sectionCode)),
+      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`)
+      .bind(crypto.randomUUID(), id, ingredient.name, ingredient.amount, ingredient.unit, Number(previousChecks.get(ingredientKey(ingredient.name)) ?? false), position, ingredient.sectionCode)),
     db.prepare('UPDATE weekly_plans SET shopping_list_id = ?, updated_at = ? WHERE week_start = ?')
       .bind(id, now, weekStart),
   );
@@ -679,16 +719,67 @@ async function getStoreSections(db) {
 }
 async function listStoreSections(db) { return json(await getStoreSections(db)); }
 
+async function getPantryItems(db) {
+  const { results } = await db.prepare('SELECT id, name, amount, unit, section_code AS sectionCode, position FROM pantry_items ORDER BY position, name').all();
+  return results;
+}
+
+async function listPantryItems(db) { return json(await getPantryItems(db)); }
+
+function cleanPantryItem(body) {
+  const name = cleanText(body?.name, 160);
+  const amount = cleanText(body?.amount, 40);
+  const unit = cleanText(body?.unit, 40);
+  const sectionCode = cleanText(body?.sectionCode, 4).toUpperCase();
+  if (!name) return { error: 'Enter an item name.' };
+  if (sectionCode && !/^[A-Z]$/.test(sectionCode)) return { error: 'Choose a valid store section.' };
+  return { name, amount, unit, sectionCode };
+}
+
+async function addPantryItem(request, db) {
+  const body = await readBody(request);
+  const item = cleanPantryItem(body);
+  if (item.error) return json({ error: item.error }, 400);
+  if (item.sectionCode && !(await db.prepare('SELECT code FROM store_sections WHERE code = ?').bind(item.sectionCode).first())) {
+    return json({ error: 'Choose an existing store section.' }, 400);
+  }
+  const id = crypto.randomUUID();
+  const { maxPosition } = await db.prepare('SELECT COALESCE(MAX(position), -1) AS maxPosition FROM pantry_items').first();
+  await db.prepare('INSERT INTO pantry_items (id, name, amount, unit, section_code, position) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, item.name, item.amount, item.unit, item.sectionCode, maxPosition + 1).run();
+  return json({ id, ...item, position: maxPosition + 1 }, 201);
+}
+
+async function updatePantryItem(request, db, id) {
+  const current = await db.prepare('SELECT * FROM pantry_items WHERE id = ?').bind(id).first();
+  if (!current) return json({ error: 'Pantry item not found.' }, 404);
+  const body = await readBody(request);
+  const item = cleanPantryItem({
+    name: body.name === undefined ? current.name : body.name,
+    amount: body.amount === undefined ? current.amount : body.amount,
+    unit: body.unit === undefined ? current.unit : body.unit,
+    sectionCode: body.sectionCode === undefined ? current.section_code : body.sectionCode,
+  });
+  if (item.error) return json({ error: item.error }, 400);
+  if (item.sectionCode && !(await db.prepare('SELECT code FROM store_sections WHERE code = ?').bind(item.sectionCode).first())) {
+    return json({ error: 'Choose an existing store section.' }, 400);
+  }
+  await db.prepare('UPDATE pantry_items SET name = ?, amount = ?, unit = ?, section_code = ? WHERE id = ?')
+    .bind(item.name, item.amount, item.unit, item.sectionCode, id).run();
+  return json({ id, ...item, position: current.position });
+}
+
 async function loadIngredientSectionMemory(db) {
   const memory = new Map();
-  const [saved, recipeRows, listRows] = await Promise.all([
+  const [saved, recipeRows, listRows, pantryRows] = await Promise.all([
     db.prepare('SELECT ingredient_key, section_code FROM ingredient_section_memory').all(),
     db.prepare("SELECT name, section_code FROM recipe_ingredients WHERE section_code != ''").all(),
     db.prepare(`SELECT i.name, i.section_code FROM shopping_list_items i JOIN shopping_lists l ON l.id = i.list_id
       WHERE i.section_code != '' ORDER BY l.updated_at DESC`).all(),
+    db.prepare("SELECT name, section_code FROM pantry_items WHERE section_code != '' ORDER BY position").all(),
   ]);
   for (const row of saved.results) memory.set(row.ingredient_key, row.section_code);
-  for (const row of [...listRows.results, ...recipeRows.results]) {
+  for (const row of [...listRows.results, ...pantryRows.results, ...recipeRows.results]) {
     const key = ingredientKey(row.name);
     if (key && !memory.has(key)) memory.set(key, row.section_code);
   }

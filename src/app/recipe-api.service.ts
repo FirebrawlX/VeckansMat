@@ -53,6 +53,7 @@ export interface ShoppingListItem {
 }
 
 export interface StoreSection { code: string; name: string; position: number; }
+export interface PantryItem { id: string; name: string; amount: string; unit: string; sectionCode: string; position: number; }
 
 export interface ShoppingList {
   id: string;
@@ -88,6 +89,22 @@ export class RecipeApiService {
 
   getStoreSections(): Promise<StoreSection[]> {
     return firstValueFrom(this.http.get<StoreSection[]>('/api/store-sections', { withCredentials: true }));
+  }
+
+  getPantryItems(): Promise<PantryItem[]> {
+    return firstValueFrom(this.http.get<PantryItem[]>('/api/pantry-items', { withCredentials: true }));
+  }
+
+  addPantryItem(item: Pick<PantryItem, 'name' | 'amount' | 'unit' | 'sectionCode'>): Promise<PantryItem> {
+    return firstValueFrom(this.http.post<PantryItem>('/api/pantry-items', item, { withCredentials: true }));
+  }
+
+  updatePantryItem(id: string, item: Pick<PantryItem, 'name' | 'amount' | 'unit' | 'sectionCode'>): Promise<PantryItem> {
+    return firstValueFrom(this.http.patch<PantryItem>(`/api/pantry-items/${encodeURIComponent(id)}`, item, { withCredentials: true }));
+  }
+
+  deletePantryItem(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/pantry-items/${encodeURIComponent(id)}`, { withCredentials: true }));
   }
 
   saveStoreSections(sections: StoreSection[]): Promise<StoreSection[]> {
