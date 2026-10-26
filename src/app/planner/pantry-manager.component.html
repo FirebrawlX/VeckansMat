@@ -1,8 +1,8 @@
 <section class="pantry-manager" aria-label="Basvaror till veckans inköpslista">
   <button class="pantry-manager-toggle" type="button" (click)="togglePanel()" [attr.aria-expanded]="expanded">
     <span class="pantry-manager-icon" aria-hidden="true">▤</span>
-    <span class="pantry-manager-copy"><strong>Basvaror varje vecka</strong><small>{{ message || (items.length ? items.length + ' sparade varor följer med nästa inköpslista' : 'Lägg till sådant ni vill ha varje vecka') }}</small></span>
-    <span class="pantry-manager-action">{{ expanded ? 'Dölj' : 'Hantera' }} <b aria-hidden="true">{{ expanded ? '−' : '＋' }}</b></span>
+    <span class="pantry-manager-copy"><strong>Basvaror</strong><span class="pantry-manager-count">{{ items.length }}</span></span>
+    <span class="pantry-manager-action" aria-hidden="true">{{ expanded ? '−' : '＋' }}</span>
   </button>
 
   @if (expanded) {

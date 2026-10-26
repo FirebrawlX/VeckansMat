@@ -50,12 +50,10 @@
 .week-switcher button span{display:block;line-height:1;transform:translateY(-1px)}
 .week-controls app-pantry-manager{display:block;flex:0 1 340px;min-width:0;margin:0}
 .week-controls .pantry-manager{border-color:#e8e9e1;border-radius:9px;background:#fff}
-.week-controls .pantry-manager-toggle{min-height:48px;padding:6px 9px;gap:8px}
-.week-controls .pantry-manager-icon{width:30px;height:30px;flex-basis:30px;border-radius:8px;font-size:15px}
+.week-controls .pantry-manager-toggle{min-height:40px;padding:5px 8px;gap:7px}
+.week-controls .pantry-manager-icon{width:27px;height:27px;flex-basis:27px;border-radius:8px;font-size:14px}
 .week-controls .pantry-manager-copy strong{font-size:11px}
-.week-controls .pantry-manager-copy small{display:none}
-.week-controls .pantry-manager-action{gap:4px;font-size:9px}
-.week-controls .pantry-manager-action b{font-size:14px}
+.week-controls .pantry-manager-action{width:23px;height:23px;font-size:14px}
 .week-shopping-open{width:100%;min-height:44px;margin-top:10px;justify-content:center;border-radius:8px;font-size:12px}
 
 /* Give meal names the card width and let them wrap within the existing card height. */
@@ -71,11 +69,11 @@
  .week-switcher button{width:31px;height:31px}
  .week-switcher>span{min-width:67px}
  .week-controls app-pantry-manager{flex-basis:205px}
- .week-controls .pantry-manager-toggle{min-height:43px;padding:5px 7px;gap:6px}
- .week-controls .pantry-manager-icon{width:27px;height:27px;flex-basis:27px;font-size:13px}
+ .week-controls .pantry-manager-toggle{min-height:38px;padding:4px 6px;gap:5px}
+ .week-controls .pantry-manager-icon{width:25px;height:25px;flex-basis:25px;font-size:12px}
  .week-controls .pantry-manager-copy strong{font-size:9px}
- .week-controls .pantry-manager-action{font-size:8px}
- .week-controls .pantry-manager-action b{font-size:12px}
+ .week-controls .pantry-manager-count{min-width:15px;height:15px;font-size:8px}
+ .week-controls .pantry-manager-action{width:20px;height:20px;font-size:12px}
  .bank-grid-accepted .bank-card{grid-template-columns:30px minmax(0,1fr) 26px;gap:5px}
  .bank-grid-accepted .bank-copy h3{font-size:11px;line-height:1.2}
  .bank-grid-accepted .meal-eaten-toggle{width:25px;height:25px;min-width:25px;flex-basis:25px}
@@ -86,10 +84,9 @@
  .week-switcher>span{min-width:61px}
  .week-switcher button{width:28px;height:28px}
  .week-controls app-pantry-manager{flex-basis:175px}
- .week-controls .pantry-manager-toggle{padding:4px 5px;gap:5px}
- .week-controls .pantry-manager-icon{width:24px;height:24px;flex-basis:24px}
+ .week-controls .pantry-manager-toggle{padding:4px 5px;gap:4px}
+ .week-controls .pantry-manager-icon{width:23px;height:23px;flex-basis:23px}
  .week-controls .pantry-manager-copy strong{font-size:8px}
- .week-controls .pantry-manager-action{font-size:7px}
  .bank-grid-accepted .bank-card{grid-template-columns:27px minmax(0,1fr) 24px;gap:4px}
  .bank-grid-accepted .meal-eaten-toggle{width:23px;height:23px;min-width:23px;flex-basis:23px}
 }

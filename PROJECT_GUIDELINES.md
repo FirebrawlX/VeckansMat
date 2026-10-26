@@ -23,3 +23,10 @@ Keep these requirements in view when changing VeckansMat.
 - Preserve checked shopping items when refreshing generated lists where practical.
 - Do not deploy or apply remote migrations unless the user asks for deployment.
 - Keep the README focused on family users; put operational commands in `CLOUDFLARE_SETUP.md`.
+
+## Database data protection
+
+- NEVER overwrite, reset, reseed, truncate, or otherwise risk losing information already saved in the database. This applies to all AI agents and future AI-assisted changes.
+- Preserve existing family data when changing schemas or database code. Prefer additive, backward-compatible migrations and explicit record-level updates.
+- Before any database operation that could affect existing records, verify its scope and ensure a recoverable backup exists. Never run destructive database operations as a shortcut for development or deployment.
+- Only change or delete a saved record when the user explicitly requests that specific change through the product or task.
