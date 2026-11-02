@@ -24,6 +24,19 @@ function withDeadline<T>(request: Promise<T>, milliseconds: number): Promise<T> 
   });
 }
 
+export function getShoppingWeekStart(today = new Date()): string {
+  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const day = date.getDay();
+  const daysSinceMonday = (day + 6) % 7;
+  date.setDate(date.getDate() - daysSinceMonday + (day === 0 || day === 6 ? 7 : 0));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function canCreateShoppingListForWeek(today: Date, weekStart: string): boolean {
+  const day = today.getDay();
+  return (day !== 0 && day !== 6) || weekStart === getShoppingWeekStart(today);
+}
+
 function emptyRecipe(): RecipeForm {
   return {
     title: '', mealKind: 'dinner', description: '', prepMinutes: null, cookMinutes: null, servings: null,
@@ -48,7 +61,7 @@ export class App {
   recipesLoading = false;
   recipesError = '';
   screen: 'week' | 'shopping' | 'collection' | 'recipe-detail' | 'new-recipe' | 'saved' = 'week';
-  weekStart = this.getCurrentWeekStart();
+  weekStart = getShoppingWeekStart();
   weeklyPlan: WeeklyPlan | null = null;
   planDraft: PlanEntry[] = [];
   savedRecipeIds: PlanEntry[] = [];
@@ -138,6 +151,21 @@ export class App {
     return 1 + Math.round(((date.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
   }
 
+  get isShoppingWeekend(): boolean {
+    const day = new Date().getDay();
+    return day === 0 || day === 6;
+  }
+
+  get isUpcomingShoppingWeek(): boolean {
+    return this.isShoppingWeekend && this.weekStart === getShoppingWeekStart();
+  }
+
+  private canCreateShoppingListForSelectedWeek(): boolean {
+    if (canCreateShoppingListForWeek(new Date(), this.weekStart)) return true;
+    this.weekError = 'På lördagar och söndagar skapar vi bara inköpslistor för kommande vecka. Välj den veckan först.';
+    return false;
+  }
+
   get groupedShoppingItems(): { id: string; title: string; items: ShoppingListItem[] }[] {
     if (!this.shoppingList) return [];
     const groups = new Map<string, ShoppingListItem[]>();
@@ -155,12 +183,6 @@ export class App {
   get shoppingProgress(): number {
     const total = this.shoppingList?.items.length ?? 0;
     return total ? Math.round((this.checkedItemCount / total) * 100) : 0;
-  }
-
-  private getCurrentWeekStart(): string {
-    const date = new Date();
-    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-    return this.dateToKey(date);
   }
 
   private dateToKey(date: Date): string {
@@ -195,6 +217,7 @@ export class App {
   async loadWeek(): Promise<void> {
     const requestId = ++this.weekLoadGeneration;
     this.weekLoading = true;
+    this.shoppingList = null;
     this.weekError = '';
     this.refreshView();
     try {
@@ -351,6 +374,11 @@ export class App {
   }
 
   async generateShoppingList(): Promise<void> {
+    if (!this.canCreateShoppingListForSelectedWeek()) return;
+    if (this.shoppingList) {
+      this.screen = 'shopping';
+      return;
+    }
     if (this.isPlanDirty) {
       this.weekError = 'Spara veckans middagar innan du skapar inköpslistan.';
       return;
@@ -755,6 +783,7 @@ export class App {
   }
 
   async regenerateShoppingList(): Promise<void> {
+    if (!this.canCreateShoppingListForSelectedWeek()) return;
     if (!this.shoppingList || !window.confirm('Skapa om listan från veckans recept? Egna ändringar i listan tas bort.')) return;
     this.listGenerating = true;
     this.shoppingItemError = '';

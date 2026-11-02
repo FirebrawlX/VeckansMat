@@ -701,14 +701,34 @@ async function getShoppingList(db, id) {
 async function getShoppingListData(db, id) {
   const list = await db.prepare('SELECT * FROM shopping_lists WHERE id = ?').bind(id).first();
   if (!list) return null;
-  const { results: items } = await db.prepare('SELECT * FROM shopping_list_items WHERE list_id = ? ORDER BY position')
+  const { results: items } = await db.prepare(`SELECT sli.*, r.title AS recipe_title
+    FROM shopping_list_items sli LEFT JOIN recipes r ON r.id = sli.recipe_id
+    WHERE sli.list_id = ? ORDER BY sli.position`)
     .bind(id).all();
+  const plan = await db.prepare('SELECT week_start FROM weekly_plans WHERE shopping_list_id = ?').bind(id).first();
+  const recipeTitlesByIngredient = new Map();
+  if (plan) {
+    const { results: ingredients } = await db.prepare(`SELECT ri.name, r.title AS recipe_title
+      FROM weekly_plan_meals m JOIN recipe_ingredients ri ON ri.recipe_id = m.recipe_id
+      JOIN recipes r ON r.id = m.recipe_id WHERE m.week_start = ? ORDER BY m.position, ri.position`)
+      .bind(plan.week_start).all();
+    for (const ingredient of ingredients) {
+      const key = ingredientKey(ingredient.name);
+      if (!recipeTitlesByIngredient.has(key)) recipeTitlesByIngredient.set(key, new Set());
+      recipeTitlesByIngredient.get(key).add(ingredient.recipe_title);
+    }
+  }
   return {
     id: list.id,
     title: list.title,
     createdAt: list.created_at,
     updatedAt: list.updated_at,
-    items: items.map(toShoppingItem),
+    items: items.map((item) => ({
+      ...toShoppingItem(item),
+      recipeTitles: item.recipe_title
+        ? [item.recipe_title]
+        : [...(recipeTitlesByIngredient.get(ingredientKey(item.name)) ?? [])],
+    })),
     sections: await getStoreSections(db),
   };
 }

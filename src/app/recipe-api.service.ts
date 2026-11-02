@@ -48,6 +48,7 @@ export interface ShoppingListItem {
   unit: string;
   checked: boolean;
   recipeId: string | null;
+  recipeTitles?: string[];
   position: number;
   sectionCode: string;
 }
