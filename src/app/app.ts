@@ -37,11 +37,11 @@ export function canCreateShoppingListForWeek(today: Date, weekStart: string): bo
   return (day !== 0 && day !== 6) || weekStart === getShoppingWeekStart(today);
 }
 
-export function isPastShoppingWeek(today: Date, weekStart: string): boolean {
+export function isShoppingWeekClosed(today: Date, weekStart: string): boolean {
   const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
   const currentWeekStart = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  return weekStart < currentWeekStart;
+  return weekStart <= currentWeekStart;
 }
 
 function emptyRecipe(): RecipeForm {
@@ -169,7 +169,7 @@ export class App {
   }
 
   get isArchivedShoppingListLocked(): boolean {
-    return Boolean(this.shoppingList && !this.archivedShoppingListUnlocked && isPastShoppingWeek(new Date(), this.weekStart));
+    return Boolean(this.shoppingList && !this.archivedShoppingListUnlocked && isShoppingWeekClosed(new Date(), this.weekStart));
   }
 
   unlockArchivedShoppingList(): void {
@@ -182,7 +182,7 @@ export class App {
   }
 
   private canCreateShoppingListForSelectedWeek(): boolean {
-    if (canCreateShoppingListForWeek(new Date(), this.weekStart)) return true;
+    if (this.archivedShoppingListUnlocked || canCreateShoppingListForWeek(new Date(), this.weekStart)) return true;
     this.weekError = 'På lördagar och söndagar skapar vi bara inköpslistor för kommande vecka. Välj den veckan först.';
     return false;
   }

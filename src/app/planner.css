@@ -46,7 +46,7 @@
 .shopping-archive-lock .button{min-height:38px;padding:0 12px;font-size:10px}
 .aisle-card li:has(.item-recipe-sources){min-height:66px;padding-top:7px;padding-bottom:7px}
 .aisle-card li>.item-copy:not(.item-edit-fields){min-width:0;align-items:stretch;flex-direction:column;justify-content:center;gap:4px}
-.item-main{min-width:0;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.item-main{min-width:0;display:flex;align-items:baseline;justify-content:flex-start;gap:8px}
 .item-main>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item-main>.item-amount{max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item-recipe-sources{width:100%;min-width:0;display:flex;align-items:center;gap:4px}
