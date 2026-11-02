@@ -37,6 +37,13 @@ export function canCreateShoppingListForWeek(today: Date, weekStart: string): bo
   return (day !== 0 && day !== 6) || weekStart === getShoppingWeekStart(today);
 }
 
+export function isPastShoppingWeek(today: Date, weekStart: string): boolean {
+  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  const currentWeekStart = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return weekStart < currentWeekStart;
+}
+
 function emptyRecipe(): RecipeForm {
   return {
     title: '', mealKind: 'dinner', description: '', prepMinutes: null, cookMinutes: null, servings: null,
@@ -73,6 +80,7 @@ export class App {
   eatenUpdatingIndex: number | null = null;
   preferences = { dinners: 7, chicken: 1, meat: 1, fish: 1, vegetarian: 1, easy: 3, kidFriendly: 2, favorites: 2, lunch: 0 };
   shoppingList: ShoppingList | null = null;
+  archivedShoppingListUnlocked = false;
   weekLoading = false;
   private weekLoadGeneration = 0;
   planSaving = false;
@@ -160,6 +168,19 @@ export class App {
     return this.isShoppingWeekend && this.weekStart === getShoppingWeekStart();
   }
 
+  get isArchivedShoppingListLocked(): boolean {
+    return Boolean(this.shoppingList && !this.archivedShoppingListUnlocked && isPastShoppingWeek(new Date(), this.weekStart));
+  }
+
+  unlockArchivedShoppingList(): void {
+    this.archivedShoppingListUnlocked = true;
+  }
+
+  openShoppingList(): void {
+    this.archivedShoppingListUnlocked = false;
+    this.screen = 'shopping';
+  }
+
   private canCreateShoppingListForSelectedWeek(): boolean {
     if (canCreateShoppingListForWeek(new Date(), this.weekStart)) return true;
     this.weekError = 'På lördagar och söndagar skapar vi bara inköpslistor för kommande vecka. Välj den veckan först.';
@@ -218,6 +239,7 @@ export class App {
     const requestId = ++this.weekLoadGeneration;
     this.weekLoading = true;
     this.shoppingList = null;
+    this.archivedShoppingListUnlocked = false;
     this.weekError = '';
     this.refreshView();
     try {
@@ -376,7 +398,7 @@ export class App {
   async generateShoppingList(): Promise<void> {
     if (!this.canCreateShoppingListForSelectedWeek()) return;
     if (this.shoppingList) {
-      this.screen = 'shopping';
+      this.openShoppingList();
       return;
     }
     if (this.isPlanDirty) {
@@ -388,7 +410,7 @@ export class App {
     try {
       this.shoppingList = await this.recipesApi.createWeeklyShoppingList(this.weekStart);
       this.weeklyPlan = { ...this.weeklyPlan!, shoppingListId: this.shoppingList.id };
-      this.screen = 'shopping';
+      this.openShoppingList();
     } catch {
       this.weekError = 'Inköpslistan kunde inte skapas. Välj minst en middag och försök igen.';
     } finally {

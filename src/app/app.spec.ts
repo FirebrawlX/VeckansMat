@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { App, canCreateShoppingListForWeek, getShoppingWeekStart } from './app';
+import { App, canCreateShoppingListForWeek, getShoppingWeekStart, isPastShoppingWeek } from './app';
 
 describe('App', () => {
   it('uses the following Monday as the shopping week on Saturday and Sunday', () => {
@@ -17,6 +17,13 @@ describe('App', () => {
     expect(canCreateShoppingListForWeek(sunday, '2026-11-02')).toBe(true);
     expect(canCreateShoppingListForWeek(sunday, '2026-10-26')).toBe(false);
     expect(canCreateShoppingListForWeek(new Date(2026, 10, 2), '2026-10-26')).toBe(true);
+  });
+
+  it('identifies shopping lists from weeks before the current calendar week', () => {
+    expect(isPastShoppingWeek(new Date(2026, 10, 2), '2026-10-26')).toBe(true);
+    expect(isPastShoppingWeek(new Date(2026, 10, 2), '2026-11-02')).toBe(false);
+    expect(isPastShoppingWeek(new Date(2026, 10, 1), '2026-10-19')).toBe(true);
+    expect(isPastShoppingWeek(new Date(2026, 10, 1), '2026-10-26')).toBe(false);
   });
 
   beforeEach(async () => {
