@@ -90,6 +90,22 @@ describe('OffersPageComponent', () => {
     expect(uncertainOffer?.textContent).toContain('Priset går inte att läsa');
   });
 
+  it('places product validity and shopping details with the add action in compact rows', async () => {
+    const fixture = await createFixture();
+    const cards = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.offer-card')];
+    const salmonCard = cards.find((card) => card.textContent?.includes('Laxfilé'));
+    const chickenCard = cards.find((card) => card.textContent?.includes('Svensk kycklingfilé'));
+
+    expect(salmonCard?.querySelector('.offer-card-heading h4')?.textContent).toContain('Laxfilé');
+    expect(salmonCard?.querySelector('.offer-card-heading .offer-expiry')).not.toBeNull();
+    expect(salmonCard?.querySelector('.offer-card-footer .offer-details')?.textContent).toContain('400 g');
+    expect(salmonCard?.querySelector('.offer-card-footer .offer-add-button')).not.toBeNull();
+    expect(chickenCard?.querySelector('.offer-card-footer .offer-conditions')?.textContent).toContain(
+      'Medlemspris',
+    );
+    expect(chickenCard?.querySelector('.offer-card-footer .offer-add-button')).not.toBeNull();
+  });
+
   it('shows offers from the selected store only', async () => {
     const fixture = await createFixture();
     fixture.componentInstance.selectStore('demo-market-malmo');

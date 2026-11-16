@@ -23,21 +23,23 @@
 .offer-department-heading h3{margin:0;color:#424a3c;font-size:16px}
 .offer-grid{padding:7px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 .offer-card{min-width:0;padding:9px 10px;border:1px solid #eeede6;border-radius:7px;background:#fdfdfa}
-.offer-card-heading{display:flex;justify-content:flex-end}
+.offer-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .offer-expiry{padding:4px 6px;border-radius:5px;background:#eff2e9;color:#687b55;font-size:8px;font-weight:650}
 .offer-expiry-soon{background:#f8eee6;color:#9a6141}
-.offer-card h4{margin:3px 0 0;color:#3b4236;font-size:15px;line-height:1.22}
+.offer-card-heading h4{min-width:0;flex:1;margin:0;color:#3b4236;font-size:15px;line-height:1.22}
 .offer-brand{margin:2px 0 0;color:#8e9085;font-size:9px}
 .offer-price-row{margin-top:7px;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
 .offer-price-row strong{color:#526a43;font-size:20px;letter-spacing:-.04em}
 .offer-price-row strong.offer-price-uncertain{color:#95694e;font-size:14px;letter-spacing:0}
 .offer-price-row>span{color:#9a9b91;font-size:9px;text-decoration:line-through}
 .offer-field-note{margin:4px 0 0;color:#9a6141;font-size:9px;line-height:1.4}
-.offer-details{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 8px;color:#85877d;font-size:9px}
-.offer-conditions{margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:4px;list-style:none}
+.offer-card-footer{margin-top:7px;display:flex;align-items:center;gap:8px}
+.offer-card-meta{min-width:0;flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px}
+.offer-details{display:flex;flex-wrap:wrap;gap:3px 8px;color:#85877d;font-size:9px}
+.offer-conditions{margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px;list-style:none}
 .offer-conditions li{padding:4px 6px;border-radius:5px;background:#f5f4ed;color:#6b6d5f;font-size:9px}
-.offer-add-button{min-width:104px;min-height:38px;margin:6px 0 0 auto;padding:0 10px;display:block;border:1px solid #e4e8dd;border-radius:6px;background:#f8f9f5;color:#687b55;font:inherit;font-size:10px;font-weight:650;cursor:pointer}
+.offer-add-button{min-width:104px;min-height:38px;padding:0 10px;flex:0 0 auto;border:1px solid #e4e8dd;border-radius:6px;background:#f8f9f5;color:#687b55;font:inherit;font-size:10px;font-weight:650;cursor:pointer}
 .offer-add-button:disabled{opacity:.55}
 .offer-add-error{margin:6px 0 0;color:#944f38;font-size:9px;line-height:1.4}
 @media(max-width:760px){.offers-view{padding:31px 20px 26px}.offer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:520px){.offers-view{padding:25px 15px 22px}.offers-heading h1{font-size:32px}.offers-store-picker{align-items:stretch;flex-direction:column;gap:6px;margin-top:16px}.offers-store-picker .text-input{width:100%;height:46px;font-size:14px}.offers-store-heading{margin-top:13px;padding:11px 10px;align-items:flex-start;flex-direction:column;gap:8px}.offers-store-heading h2{font-size:20px}.offers-validity{width:100%;box-sizing:border-box}.offer-departments{gap:9px}.offer-department-heading{min-height:39px;padding:7px 10px}.offer-grid{padding:6px;grid-template-columns:1fr;gap:6px}.offer-card{padding:9px 10px}.offer-price-row{margin-top:6px}.offer-price-row strong{font-size:22px}.offer-expiry{font-size:9px}.offer-details,.offer-conditions li{font-size:10px}}
+@media(max-width:520px){.offers-view{padding:25px 15px 22px}.offers-heading h1{font-size:32px}.offers-store-picker{align-items:stretch;flex-direction:column;gap:6px;margin-top:16px}.offers-store-picker .text-input{width:100%;height:46px;font-size:14px}.offers-store-heading{margin-top:13px;padding:11px 10px;align-items:flex-start;flex-direction:column;gap:8px}.offers-store-heading h2{font-size:20px}.offers-validity{width:100%;box-sizing:border-box}.offer-departments{gap:9px}.offer-department-heading{min-height:39px;padding:7px 10px}.offer-grid{padding:6px;grid-template-columns:1fr;gap:6px}.offer-card{padding:9px 10px}.offer-price-row{margin-top:6px}.offer-price-row strong{font-size:22px}.offer-expiry{font-size:9px}.offer-details,.offer-conditions li{font-size:10px}.offer-card-meta{gap:3px 6px}}

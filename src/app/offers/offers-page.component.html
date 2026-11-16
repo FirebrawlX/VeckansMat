@@ -108,11 +108,11 @@
               @for (offer of department.offers; track offer.id) {
                 <article class="offer-card">
                   <div class="offer-card-heading">
+                    <h4>{{ productName(offer) }}</h4>
                     <span class="offer-expiry" [class.offer-expiry-soon]="isEndingSoon(offer)">
                       {{ offerPeriodLabel(offer) }}
                     </span>
                   </div>
-                  <h4>{{ productName(offer) }}</h4>
                   @if (brandLabel(offer)) {
                     <p class="offer-brand">{{ brandLabel(offer) }}</p>
                   }
@@ -127,30 +127,34 @@
                   @if (priceNote(offer.offerPrice)) {
                     <p class="offer-field-note">{{ priceNote(offer.offerPrice) }}</p>
                   }
-                  <div class="offer-details">
-                    @if (packageSizeLabel(offer)) {
-                      <span>{{ packageSizeLabel(offer) }}</span>
-                    }
-                    @if (unitPriceLabel(offer)) {
-                      <span>{{ unitPriceLabel(offer) }}</span>
-                    }
-                  </div>
-                  @if (conditionLabels(offer).length) {
-                    <ul class="offer-conditions">
-                      @for (condition of conditionLabels(offer); track condition) {
-                        <li>{{ condition }}</li>
+                  <div class="offer-card-footer">
+                    <div class="offer-card-meta">
+                      <div class="offer-details">
+                        @if (packageSizeLabel(offer)) {
+                          <span>{{ packageSizeLabel(offer) }}</span>
+                        }
+                        @if (unitPriceLabel(offer)) {
+                          <span>{{ unitPriceLabel(offer) }}</span>
+                        }
+                      </div>
+                      @if (conditionLabels(offer).length) {
+                        <ul class="offer-conditions">
+                          @for (condition of conditionLabels(offer); track condition) {
+                            <li>{{ condition }}</li>
+                          }
+                        </ul>
                       }
-                    </ul>
-                  }
-                  <button
-                    class="offer-add-button"
-                    type="button"
-                    (click)="addOffer(offer)"
-                    [disabled]="isLoadingShoppingList || !shoppingListId || offer.productName.status !== 'known' || addingOfferIds.has(offer.id) || addedOfferIds.has(offer.id)"
-                    [attr.aria-label]="'Lägg till ' + productName(offer) + ' i inköpslistan'"
-                  >
-                    {{ addingOfferIds.has(offer.id) ? 'Lägger till…' : addedOfferIds.has(offer.id) ? '✓ Tillagd' : '＋ Lägg till' }}
-                  </button>
+                    </div>
+                    <button
+                      class="offer-add-button"
+                      type="button"
+                      (click)="addOffer(offer)"
+                      [disabled]="isLoadingShoppingList || !shoppingListId || offer.productName.status !== 'known' || addingOfferIds.has(offer.id) || addedOfferIds.has(offer.id)"
+                      [attr.aria-label]="'Lägg till ' + productName(offer) + ' i inköpslistan'"
+                    >
+                      {{ addingOfferIds.has(offer.id) ? 'Lägger till…' : addedOfferIds.has(offer.id) ? '✓ Tillagd' : '＋ Lägg till' }}
+                    </button>
+                  </div>
                   @if (offerAddErrors[offer.id]) {
                     <p class="offer-add-error" role="alert">{{ offerAddErrors[offer.id] }}</p>
                   }
