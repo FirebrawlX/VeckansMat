@@ -55,6 +55,14 @@ export interface ShoppingListItem {
 }
 
 export interface StoreSection { code: string; name: string; position: number; }
+export interface IngredientInventoryItem {
+  name: string;
+  sectionCode: string;
+  recipeCount: number;
+  shoppingListCount: number;
+  pantryCount: number;
+}
+
 export interface ShoppingList {
   id: string;
   title: string;
@@ -89,6 +97,14 @@ export class RecipeApiService {
 
   getStoreSections(): Promise<StoreSection[]> {
     return firstValueFrom(this.http.get<StoreSection[]>('/api/store-sections', { withCredentials: true }));
+  }
+
+  getIngredientInventory(): Promise<IngredientInventoryItem[]> {
+    return firstValueFrom(this.http.get<IngredientInventoryItem[]>('/api/ingredient-inventory', { withCredentials: true }));
+  }
+
+  updateIngredientInventory(currentName: string, item: Pick<IngredientInventoryItem, 'name' | 'sectionCode'>): Promise<IngredientInventoryItem> {
+    return firstValueFrom(this.http.patch<IngredientInventoryItem>('/api/ingredient-inventory', { currentName, ...item }, { withCredentials: true }));
   }
 
   saveStoreSections(sections: StoreSection[]): Promise<StoreSection[]> {

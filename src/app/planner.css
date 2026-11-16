@@ -217,3 +217,48 @@
  .bank-badges span{font-size:8px}
  .bank-grid-accepted .meal-eaten-toggle{grid-column:2;grid-row:1;width:23px;height:23px;min-width:23px;flex-basis:23px}
 }
+
+.collection-heading-actions{display:flex;align-items:center;gap:14px}
+.inventory-link{padding:8px 0;border:0;background:transparent;color:#777d6e;font:inherit;font-size:10px;cursor:pointer;white-space:nowrap}
+.inventory-link:hover{color:#4c663e}
+.inventory-link span{margin-right:4px;color:#859573}
+.ingredient-inventory-view{max-width:900px;margin:0 auto;padding:36px 28px 48px}
+.inventory-heading{margin:27px 0 22px}
+.inventory-heading h1{margin:0;color:#31392e;font-family:Georgia,'Times New Roman',serif;font-size:clamp(31px,4vw,40px);font-weight:400;letter-spacing:-.04em}
+.inventory-heading .eyebrow{margin-bottom:8px}
+.inventory-heading .muted{margin:8px 0 0;font-size:12px}
+.inventory-toolbar{min-height:59px;padding:9px 0;display:flex;align-items:center;gap:12px;border-top:1px solid #eae9e1;border-bottom:1px solid #eae9e1}
+.inventory-toolbar .search-box{flex:1;width:auto;max-width:340px}
+.inventory-sort{display:flex;align-items:center;gap:8px;color:#85877d;font-size:10px}
+.inventory-sort .text-input{width:135px;height:36px;font-size:11px}
+.inventory-count{color:#97988c;font-size:10px;white-space:nowrap}
+.inventory-list{margin-top:12px;display:grid;gap:6px}
+.inventory-row{min-width:0;padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr) 190px 62px;align-items:center;gap:12px;border:1px solid #ecebe4;border-radius:8px;background:#fff}
+.inventory-item-name{min-width:0}
+.inventory-item-name .text-input,.inventory-section .text-input{height:35px;font-size:11px}
+.inventory-item-name small{display:block;margin:4px 0 0 2px;color:#a0a094;font-size:9px}
+.inventory-section{min-width:0;display:grid;gap:4px;color:#939489;font-size:9px}
+.inventory-save{min-height:35px;padding:0 10px;border:1px solid #e5e8dd;border-radius:6px;background:#f7f8f4;color:#60764f;font:inherit;font-size:10px;font-weight:600;cursor:pointer}
+.inventory-save:hover:not(:disabled){border-color:#cdd7c3;background:#eff3ea}
+.inventory-save:disabled{opacity:.42;cursor:default}
+.inventory-link:focus-visible,.inventory-save:focus-visible,.inventory-retry:focus-visible{outline:3px solid #b5c39e;outline-offset:3px}
+.inventory-empty{margin-top:12px;padding:38px 20px}
+.inventory-retry{margin-left:7px;padding:3px 6px;border:0;border-bottom:1px solid currentColor;background:transparent;color:inherit;font:inherit;cursor:pointer}
+@media(max-width:620px){
+ .collection-heading-actions{flex-direction:column-reverse;align-items:flex-end;gap:4px}
+ .inventory-link{padding:6px 0;font-size:9px}
+ .ingredient-inventory-view{padding:24px 16px 38px}
+ .inventory-heading{margin:22px 0 17px}
+ .inventory-heading h1{font-size:31px}
+ .inventory-heading .muted{font-size:11px}
+ .inventory-toolbar{flex-wrap:wrap;gap:8px}
+ .inventory-toolbar .search-box{max-width:none;flex-basis:100%}
+ .inventory-sort{flex:1}
+ .inventory-sort .text-input{height:40px}
+ .inventory-row{grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:9px}
+ .inventory-item-name{grid-column:1/-1}
+ .inventory-item-name .text-input,.inventory-section .text-input{height:42px;font-size:13px}
+ .inventory-item-name small{font-size:9px;line-height:1.4}
+ .inventory-section{grid-column:1;font-size:10px}
+ .inventory-save{grid-column:2;grid-row:2;min-width:67px;min-height:44px}
+}

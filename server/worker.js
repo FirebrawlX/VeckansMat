@@ -56,6 +56,8 @@ async function handleApi(request, env, url) {
   if (request.method === 'POST' && url.pathname === '/api/offers/extract') return extractOffers(request, env);
   if (request.method === 'POST' && url.pathname === '/api/offers/publish') return publishOffers(request, env.DB);
 
+  if (request.method === 'GET' && url.pathname === '/api/ingredient-inventory') return listIngredientInventory(env.DB);
+  if (request.method === 'PATCH' && url.pathname === '/api/ingredient-inventory') return updateIngredientInventory(request, env.DB);
   if (request.method === 'GET' && url.pathname === '/api/store-sections') return listStoreSections(env.DB);
   if (request.method === 'GET' && url.pathname === '/api/pantry-items') return listPantryItems(env.DB);
   if (request.method === 'POST' && url.pathname === '/api/pantry-items') return addPantryItem(request, env.DB);
@@ -1049,6 +1051,105 @@ async function loadIngredientSectionMemory(db) {
     if (key && !memory.has(key)) memory.set(key, row.section_code);
   }
   return memory;
+}
+
+async function listIngredientInventory(db) {
+  const [recipeRows, shoppingRows, pantryRows, memory] = await Promise.all([
+    db.prepare('SELECT name, recipe_id, section_code FROM recipe_ingredients').all(),
+    db.prepare('SELECT name, list_id, section_code FROM shopping_list_items').all(),
+    db.prepare('SELECT name, section_code FROM pantry_items').all(),
+    loadIngredientSectionMemory(db),
+  ]);
+  const inventory = new Map();
+  const getItem = (name) => {
+    if (!inventory.has(name)) inventory.set(name, { name, sectionCode: '', recipeIds: new Set(), shoppingListIds: new Set(), pantryCount: 0 });
+    return inventory.get(name);
+  };
+  for (const row of recipeRows.results) {
+    const item = getItem(row.name);
+    item.recipeIds.add(row.recipe_id);
+    item.sectionCode ||= row.section_code ?? '';
+  }
+  for (const row of shoppingRows.results) {
+    const item = getItem(row.name);
+    item.shoppingListIds.add(row.list_id);
+    item.sectionCode ||= row.section_code ?? '';
+  }
+  for (const row of pantryRows.results) {
+    const item = getItem(row.name);
+    item.pantryCount += 1;
+    item.sectionCode ||= row.section_code ?? '';
+  }
+  return json([...inventory.values()]
+    .map(({ recipeIds, shoppingListIds, ...item }) => ({
+      ...item,
+      sectionCode: memory.get(ingredientKey(item.name)) ?? item.sectionCode,
+      recipeCount: recipeIds.size,
+      shoppingListCount: shoppingListIds.size,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'sv')));
+}
+
+async function updateIngredientInventory(request, db) {
+  const body = await readBody(request);
+  const currentName = cleanText(body.currentName, 160);
+  const name = cleanText(body.name, 160);
+  const sectionCode = cleanText(body.sectionCode, 4).toUpperCase();
+  if (!currentName || !name || (body.sectionCode !== undefined && typeof body.sectionCode !== 'string')
+    || (sectionCode && !/^[A-Z]$/.test(sectionCode))) {
+    return json({ error: 'Enter a valid ingredient name and store section.' }, 400);
+  }
+  if (sectionCode && !(await db.prepare('SELECT code FROM store_sections WHERE code = ?').bind(sectionCode).first())) {
+    return json({ error: 'Choose an existing store section.' }, 400);
+  }
+
+  const [recipeRows, shoppingRows, pantryRows] = await Promise.all([
+    db.prepare('SELECT recipe_id FROM recipe_ingredients WHERE name = ?').bind(currentName).all(),
+    db.prepare('SELECT id FROM shopping_list_items WHERE name = ?').bind(currentName).all(),
+    db.prepare('SELECT id FROM pantry_items WHERE name = ?').bind(currentName).all(),
+  ]);
+  if (!recipeRows.results.length && !shoppingRows.results.length && !pantryRows.results.length) {
+    return json({ error: 'Ingredient not found.' }, 404);
+  }
+
+  const now = Date.now();
+  const oldKey = ingredientKey(currentName);
+  const newKey = ingredientKey(name);
+  const statements = [];
+  if (shoppingRows.results.length) {
+    statements.push(db.prepare(`UPDATE shopping_lists SET updated_at = ?
+      WHERE id IN (SELECT DISTINCT list_id FROM shopping_list_items WHERE name = ?)`).bind(now, currentName));
+  }
+  statements.push(
+    db.prepare('UPDATE recipe_ingredients SET name = ?, section_code = ? WHERE name = ?').bind(name, sectionCode, currentName),
+    db.prepare('UPDATE shopping_list_items SET name = ?, section_code = ? WHERE name = ?').bind(name, sectionCode, currentName),
+    db.prepare('UPDATE pantry_items SET name = ?, section_code = ? WHERE name = ?').bind(name, sectionCode, currentName),
+  );
+  if (sectionCode) {
+    statements.push(db.prepare(`INSERT INTO ingredient_section_memory (ingredient_key, section_code, updated_at)
+      VALUES (?, ?, ?) ON CONFLICT(ingredient_key) DO UPDATE SET section_code = excluded.section_code, updated_at = excluded.updated_at`)
+      .bind(newKey, sectionCode, now));
+  } else {
+    statements.push(db.prepare('DELETE FROM ingredient_section_memory WHERE ingredient_key = ?').bind(newKey));
+  }
+
+  if (oldKey !== newKey) {
+    const [remainingRecipes, remainingShopping, remainingPantry] = await Promise.all([
+      db.prepare('SELECT name FROM recipe_ingredients WHERE name != ?').bind(currentName).all(),
+      db.prepare('SELECT name FROM shopping_list_items WHERE name != ?').bind(currentName).all(),
+      db.prepare('SELECT name FROM pantry_items WHERE name != ?').bind(currentName).all(),
+    ]);
+    const oldKeyStillUsed = [...remainingRecipes.results, ...remainingShopping.results, ...remainingPantry.results]
+      .some((row) => ingredientKey(row.name) === oldKey);
+    if (!oldKeyStillUsed) statements.push(db.prepare('DELETE FROM ingredient_section_memory WHERE ingredient_key = ?').bind(oldKey));
+  }
+
+  await db.batch(statements);
+  const updated = await listIngredientInventory(db);
+  const items = await updated.json();
+  const updatedItem = items.find((item) => item.name === name);
+  if (!updatedItem) return json({ error: 'Ingredient not found.' }, 404);
+  return json(updatedItem);
 }
 
 async function applyRememberedSections(db, ingredients) {

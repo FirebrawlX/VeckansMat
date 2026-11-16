@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, effect, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { AuthService } from './auth.service';
-import { RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, ShoppingListItem, StoreSection, WeeklyPlan } from './recipe-api.service';
+import { IngredientInventoryItem, RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, ShoppingListItem, StoreSection, WeeklyPlan } from './recipe-api.service';
 import { getShoppingWeekStart } from './week-date';
 import { OffersPageComponent } from './offers/offers-page.component';
 import { PantryManagerComponent } from './planner/pantry-manager.component';
@@ -13,6 +13,7 @@ const DAY_NAMES = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'
 type RecipeForm = RecipeDraft;
 type MealType = 'dinner' | 'lunch';
 type PlanEntry = { recipeId: string; type: MealType; eaten: boolean };
+type IngredientInventoryDraft = IngredientInventoryItem & { originalName: string; originalSectionCode: string };
 
 function withDeadline<T>(request: Promise<T>, milliseconds: number): Promise<T> {
   let timer: number | undefined;
@@ -63,7 +64,7 @@ export class App {
   recipes: Recipe[] = [];
   recipesLoading = false;
   recipesError = '';
-  screen: 'week' | 'shopping' | 'offers' | 'collection' | 'recipe-detail' | 'new-recipe' | 'saved' = 'week';
+  screen: 'week' | 'shopping' | 'offers' | 'collection' | 'ingredients' | 'recipe-detail' | 'new-recipe' | 'saved' = 'week';
   weekStart = getShoppingWeekStart();
   weeklyPlan: WeeklyPlan | null = null;
   planDraft: PlanEntry[] = [];
@@ -97,6 +98,13 @@ export class App {
   editingShoppingItemDraft = { name: '', amount: '', unit: '' };
   filter = '';
   storeSections: StoreSection[] = [{ code: 'A', name: 'Frukt & grönt', position: 0 }];
+  ingredientInventory: IngredientInventoryDraft[] = [];
+  inventoryLoading = false;
+  inventoryError = '';
+  inventoryMessage = '';
+  inventorySearch = '';
+  inventorySort: 'name' | 'section' = 'name';
+  inventorySavingName: string | null = null;
   sectionDraft: StoreSection[] = [];
   sectionSaving = false;
   sectionError = '';
@@ -193,6 +201,20 @@ export class App {
     return [...groups.keys()].sort((a, b) => a === '?' ? 1 : b === '?' ? -1 : (this.storeSections.find((s) => s.code === a)?.position ?? 999) - (this.storeSections.find((s) => s.code === b)?.position ?? 999)).map((id) => ({ id, title: id === '?' ? 'Oplacerade' : this.storeSections.find((s) => s.code === id)?.name ?? 'Avdelning saknas', items: groups.get(id)!.sort((a,b) => a.name.localeCompare(b.name, 'sv')) }));
   }
 
+  get filteredIngredientInventory(): IngredientInventoryDraft[] {
+    const query = this.inventorySearch.trim().toLocaleLowerCase('sv');
+    return this.ingredientInventory
+      .filter((item) => item.name.toLocaleLowerCase('sv').includes(query))
+      .sort((a, b) => {
+        if (this.inventorySort === 'section') {
+          const sectionOrder = (code: string) => code ? this.storeSections.find((section) => section.code === code)?.position ?? 999 : 1000;
+          const difference = sectionOrder(a.sectionCode) - sectionOrder(b.sectionCode);
+          if (difference) return difference;
+        }
+        return a.name.localeCompare(b.name, 'sv');
+      });
+  }
+
   get checkedItemCount(): number {
     return this.shoppingList?.items.filter((item) => item.checked).length ?? 0;
   }
@@ -212,10 +234,28 @@ export class App {
   }
 
   async loadAppData(): Promise<void> {
-    await Promise.all([this.loadRecipes(), this.loadWeek(), this.loadStoreSections()]);
+    await Promise.all([this.loadRecipes(), this.loadWeek(), this.loadStoreSections(), this.loadIngredientInventory()]);
   }
 
   async loadStoreSections(): Promise<void> { try { this.storeSections = await this.recipesApi.getStoreSections(); this.sectionDraft = this.storeSections.map((section) => ({ ...section })); } catch { this.sectionError = 'Avdelningarna kunde inte hämtas.'; } finally { this.refreshView(); } }
+
+  async loadIngredientInventory(): Promise<void> {
+    this.inventoryLoading = true;
+    this.inventoryError = '';
+    this.refreshView();
+    try {
+      this.ingredientInventory = (await this.recipesApi.getIngredientInventory()).map((item) => ({
+        ...item,
+        originalName: item.name,
+        originalSectionCode: item.sectionCode,
+      }));
+    } catch {
+      this.inventoryError = 'Varorna kunde inte hämtas. Kontrollera anslutningen och försök igen.';
+    } finally {
+      this.inventoryLoading = false;
+      this.refreshView();
+    }
+  }
 
   async refreshShoppingListData(): Promise<void> {
     if (!this.shoppingList) return;
@@ -528,7 +568,46 @@ export class App {
     this.editingRecipeId = null;
     this.recipeForm = emptyRecipe();
     this.saveError = '';
+    void this.loadIngredientInventory();
     this.screen = 'new-recipe';
+  }
+
+  openIngredientInventory(): void {
+    this.screen = 'ingredients';
+    this.inventoryMessage = '';
+    void this.loadIngredientInventory();
+  }
+
+  selectIngredientFromInventory(index: number): void {
+    const ingredient = this.recipeForm.ingredients[index];
+    if (!ingredient) return;
+    const match = this.ingredientInventory.find((item) => item.name.trim().toLocaleLowerCase('sv') === ingredient.name.trim().toLocaleLowerCase('sv'));
+    if (match) {
+      ingredient.name = match.name;
+      ingredient.sectionCode = match.sectionCode;
+    }
+  }
+
+  async saveIngredientInventory(item: IngredientInventoryDraft): Promise<void> {
+    const name = item.name.trim();
+    if (!name || this.inventorySavingName) return;
+    this.inventorySavingName = item.originalName;
+    this.inventoryError = '';
+    this.inventoryMessage = '';
+    try {
+      await this.recipesApi.updateIngredientInventory(item.originalName, { name, sectionCode: item.sectionCode });
+      await Promise.all([
+        this.loadIngredientInventory(),
+        this.loadRecipes(),
+        this.shoppingList ? this.refreshShoppingListData() : Promise.resolve(),
+      ]);
+      this.inventoryMessage = 'Varan är uppdaterad i recept och inköpslistor.';
+    } catch {
+      this.inventoryError = 'Varan kunde inte sparas. Kontrollera namn och avdelning och försök igen.';
+    } finally {
+      this.inventorySavingName = null;
+      this.refreshView();
+    }
   }
 
   openRecipe(recipe: Recipe): void {
@@ -690,6 +769,7 @@ export class App {
         ? await this.recipesApi.updateRecipe(this.editingRecipeId, draft)
         : await this.recipesApi.createRecipe(draft);
       this.recipes = [saved, ...this.recipes.filter((recipe) => recipe.id !== saved.id)];
+      void this.loadIngredientInventory();
       this.selectedRecipeDetail = saved;
       this.savedTitle = saved.title;
       this.screen = this.editingRecipeId ? 'recipe-detail' : 'saved';

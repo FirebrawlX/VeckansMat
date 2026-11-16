@@ -52,4 +52,38 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Välkommen hem.');
   });
+
+  it('uses a known ingredient name and its store section in the recipe form', () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    app.ingredientInventory = [{
+      name: 'Gurka',
+      sectionCode: 'A',
+      recipeCount: 2,
+      shoppingListCount: 1,
+      pantryCount: 0,
+      originalName: 'Gurka',
+      originalSectionCode: 'A',
+    }];
+    app.recipeForm.ingredients[0].name = 'gurka';
+
+    app.selectIngredientFromInventory(0);
+
+    expect(app.recipeForm.ingredients[0]).toMatchObject({ name: 'Gurka', sectionCode: 'A' });
+  });
+
+  it('sorts the ingredient inventory by section and then by name', () => {
+    const app = TestBed.createComponent(App).componentInstance;
+    app.inventorySort = 'section';
+    app.storeSections = [
+      { code: 'A', name: 'Frukt & grönt', position: 0 },
+      { code: 'B', name: 'Mejeri', position: 1 },
+    ];
+    app.ingredientInventory = [
+      { name: 'Mjölk', sectionCode: 'B', recipeCount: 1, shoppingListCount: 0, pantryCount: 0, originalName: 'Mjölk', originalSectionCode: 'B' },
+      { name: 'Äpple', sectionCode: 'A', recipeCount: 1, shoppingListCount: 0, pantryCount: 0, originalName: 'Äpple', originalSectionCode: 'A' },
+      { name: 'Banan', sectionCode: 'A', recipeCount: 1, shoppingListCount: 0, pantryCount: 0, originalName: 'Banan', originalSectionCode: 'A' },
+    ];
+
+    expect(app.filteredIngredientInventory.map((item) => item.name)).toEqual(['Banan', 'Äpple', 'Mjölk']);
+  });
 });
