@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { App, canCreateShoppingListForWeek, getShoppingWeekStart, isShoppingWeekClosed } from './app';
+import { getOfferMenuWeekStart } from './week-date';
 
 describe('App', () => {
   it('uses the following Monday as the shopping week on Saturday and Sunday', () => {
@@ -10,6 +11,11 @@ describe('App', () => {
   it('keeps the current Monday-to-Sunday week on weekdays', () => {
     expect(getShoppingWeekStart(new Date(2026, 9, 30))).toBe('2026-10-26');
     expect(getShoppingWeekStart(new Date(2026, 10, 2))).toBe('2026-11-02');
+  });
+
+  it('targets the week after this week’s offers, including on Sunday', () => {
+    expect(getOfferMenuWeekStart(new Date(2026, 10, 16))).toBe('2026-11-23');
+    expect(getOfferMenuWeekStart(new Date(2026, 10, 22))).toBe('2026-11-23');
   });
 
   it('only allows list creation for the upcoming week on weekends', () => {

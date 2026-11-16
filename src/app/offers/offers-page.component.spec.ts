@@ -4,6 +4,7 @@ import { OfferApiService } from './offer-api.service';
 import type { OfferPublishedResponse } from './offer-api.service';
 import { OffersPageComponent } from './offers-page.component';
 import { RecipeApiService } from '../recipe-api.service';
+import { getOfferMenuWeekStart } from '../week-date';
 
 async function createFixture(
   response: OfferPublishedResponse = {
@@ -14,6 +15,12 @@ async function createFixture(
   shoppingListId: string | null = null,
   addShoppingItem: (listId: string, item: { name: string; amount: string; unit: string; isOffer?: boolean }) => Promise<unknown> =
     () => Promise.resolve({}),
+  getWeeklyPlan = (weekStart: string) => Promise.resolve({
+    weekStart,
+    updatedAt: null,
+    shoppingListId,
+    meals: [],
+  }),
 ) {
   await TestBed.configureTestingModule({
     imports: [OffersPageComponent],
@@ -24,14 +31,33 @@ async function createFixture(
       },
       {
         provide: RecipeApiService,
-        useValue: { addShoppingItem },
+        useValue: {
+          addShoppingItem,
+          getWeeklyPlan,
+          getShoppingList: (id: string) => Promise.resolve({
+            id,
+            title: 'Inköpslista',
+            createdAt: 0,
+            updatedAt: 0,
+            items: [],
+          }),
+        },
       },
     ],
   }).compileComponents();
   const fixture = TestBed.createComponent(OffersPageComponent);
-  fixture.componentInstance.shoppingListId = shoppingListId;
   fixture.detectChanges();
   await fixture.whenStable();
+  for (
+    let attempts = 0;
+    attempts < 10 &&
+    (fixture.componentInstance.isLoadingPublished || fixture.componentInstance.isLoadingShoppingList);
+    attempts++
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  expect(fixture.componentInstance.isLoadingPublished).toBe(false);
+  expect(fixture.componentInstance.isLoadingShoppingList).toBe(false);
   fixture.detectChanges();
   return fixture;
 }
@@ -68,6 +94,8 @@ describe('OffersPageComponent', () => {
     const fixture = await createFixture();
     fixture.componentInstance.selectStore('demo-market-malmo');
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('.offers-store-heading h2')?.textContent).toContain(
@@ -96,17 +124,27 @@ describe('OffersPageComponent', () => {
 
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons.every((button) => button.disabled)).toBe(true);
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Skapa veckans inköpslista först');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Skapa nästa veckas inköpslista');
   });
 
   it('adds an offer to the existing list with its offer marker', async () => {
     const calls: { listId: string; item: { name: string; amount: string; unit: string; isOffer?: boolean } }[] = [];
+    const planRequests: string[] = [];
     const fixture = await createFixture(
       undefined,
       'weekly-list-id',
       (listId, item) => {
         calls.push({ listId, item });
         return Promise.resolve({});
+      },
+      (weekStart) => {
+        planRequests.push(weekStart);
+        return Promise.resolve({
+          weekStart,
+          updatedAt: null,
+          shoppingListId: 'weekly-list-id',
+          meals: [],
+        });
       },
     );
     const element = fixture.nativeElement as HTMLElement;
@@ -123,6 +161,7 @@ describe('OffersPageComponent', () => {
     expect(calls).toEqual([
       { listId: 'weekly-list-id', item: { name: 'Svenska äpplen', amount: '', unit: '', isOffer: true } },
     ]);
+    expect(planRequests).toEqual([getOfferMenuWeekStart()]);
     expect(button?.textContent).toContain('Tillagd');
     expect(button?.disabled).toBe(true);
   });

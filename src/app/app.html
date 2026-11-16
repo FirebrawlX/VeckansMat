@@ -292,7 +292,7 @@
       </section>
     } @else if (screen === 'offers') {
       @defer (when screen === 'offers') {
-      <app-offers-page [shoppingListId]="weekStart === currentShoppingWeekStart ? shoppingList?.id ?? null : null"></app-offers-page>
+      <app-offers-page></app-offers-page>
       } @loading {
         <div class="state-card" aria-live="polite"><span class="loader"></span><p>Öppnar erbjudandena…</p></div>
       }

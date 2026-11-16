@@ -1,8 +1,9 @@
-import { ChangeDetectorRef, Component, Input, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RecipeApiService } from '../recipe-api.service';
+import { getOfferMenuWeekStart } from '../week-date';
 import { OfferApiService } from './offer-api.service';
 import type { OfferPublishedResponse } from './offer-api.service';
 import { OfferImportComponent } from './offer-import.component';
@@ -43,7 +44,7 @@ export class OffersPageComponent implements OnInit {
   private readonly offersApi = inject(OfferApiService);
   private readonly recipesApi = inject(RecipeApiService);
   private readonly changeDetector = inject(ChangeDetectorRef);
-  @Input() shoppingListId: string | null = null;
+  readonly offerMenuWeekStart = getOfferMenuWeekStart();
   catalog: OfferCatalog = { stores: [], flyers: [], offers: [] };
   isLoadingPublished = true;
   hasPublishedOffers = false;
@@ -52,6 +53,9 @@ export class OffersPageComponent implements OnInit {
   publishedAt: number | null = null;
   lastImport: OfferPublishedResponse['lastImport'] = null;
   selectedStoreId = '';
+  shoppingListId: string | null = null;
+  isLoadingShoppingList = true;
+  shoppingListError = '';
   addingOfferIds = new Set<string>();
   addedOfferIds = new Set<string>();
   offerAddErrors: Record<string, string> = {};
@@ -69,7 +73,29 @@ export class OffersPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    void this.loadPublishedOffers();
+    void Promise.all([this.loadPublishedOffers(), this.loadOfferShoppingList()]);
+  }
+
+  private async loadOfferShoppingList(): Promise<void> {
+    this.isLoadingShoppingList = true;
+    this.shoppingListError = '';
+    this.shoppingListId = null;
+    try {
+      const plan = await this.recipesApi.getWeeklyPlan(this.offerMenuWeekStart);
+      if (plan.shoppingListId) {
+        await this.recipesApi.getShoppingList(plan.shoppingListId);
+        this.shoppingListId = plan.shoppingListId;
+      }
+    } catch {
+      this.shoppingListError = 'Nästa veckas inköpslista kunde inte kontrolleras. Försök igen.';
+    } finally {
+      this.isLoadingShoppingList = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  recheckOfferShoppingList(): void {
+    void this.loadOfferShoppingList();
   }
 
   get activeFlyers(): OfferFlyer[] {

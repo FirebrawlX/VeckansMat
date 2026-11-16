@@ -3,8 +3,11 @@ import { FormsModule } from '@angular/forms';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { AuthService } from './auth.service';
 import { RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, ShoppingListItem, StoreSection, WeeklyPlan } from './recipe-api.service';
+import { getShoppingWeekStart } from './week-date';
 import { OffersPageComponent } from './offers/offers-page.component';
 import { PantryManagerComponent } from './planner/pantry-manager.component';
+
+export { getShoppingWeekStart } from './week-date';
 
 const DAY_NAMES = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 type RecipeForm = RecipeDraft;
@@ -23,14 +26,6 @@ function withDeadline<T>(request: Promise<T>, milliseconds: number): Promise<T> 
   return Promise.race([request, deadline]).finally(() => {
     if (timer !== undefined) window.clearTimeout(timer);
   });
-}
-
-export function getShoppingWeekStart(today = new Date()): string {
-  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const day = date.getDay();
-  const daysSinceMonday = (day + 6) % 7;
-  date.setDate(date.getDate() - daysSinceMonday + (day === 0 || day === 6 ? 7 : 0));
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export function canCreateShoppingListForWeek(today: Date, weekStart: string): boolean {
@@ -167,10 +162,6 @@ export class App {
 
   get isUpcomingShoppingWeek(): boolean {
     return this.isShoppingWeekend && this.weekStart === getShoppingWeekStart();
-  }
-
-  get currentShoppingWeekStart(): string {
-    return getShoppingWeekStart();
   }
 
   get isArchivedShoppingListLocked(): boolean {

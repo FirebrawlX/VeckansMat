@@ -4,8 +4,18 @@
     <h1 id="offers-title">Veckans erbjudanden<span class="heading-spark"> ✳</span></h1>
     <p class="muted">Samlat efter avdelning, så att det blir enkelt att hitta i butiken.</p>
     <p class="offers-list-hint">
-      {{ shoppingListId ? 'Lägg till en vara här så markeras den med % i inköpslistan.' : 'Skapa veckans inköpslista först för att kunna lägga till erbjudanden.' }}
+      @if (isLoadingShoppingList) {
+        Kontrollerar nästa veckas inköpslista…
+      } @else if (shoppingListId) {
+        Veckans erbjudanden läggs till i nästa veckas inköpslista och markeras med %.
+      } @else {
+        Skapa nästa veckas inköpslista under Veckan först för att kunna lägga till erbjudanden.
+        <button class="button button-soft" type="button" (click)="recheckOfferShoppingList()">Kontrollera igen</button>
+      }
     </p>
+    @if (shoppingListError) {
+      <p class="offers-load-error" role="alert">{{ shoppingListError }}</p>
+    }
   </header>
 
   @if (loadError) {
@@ -98,7 +108,6 @@
               @for (offer of department.offers; track offer.id) {
                 <article class="offer-card">
                   <div class="offer-card-heading">
-                    <span class="offer-category">{{ department.name }}</span>
                     <span class="offer-expiry" [class.offer-expiry-soon]="isEndingSoon(offer)">
                       {{ offerPeriodLabel(offer) }}
                     </span>
@@ -137,7 +146,7 @@
                     class="offer-add-button"
                     type="button"
                     (click)="addOffer(offer)"
-                    [disabled]="!shoppingListId || offer.productName.status !== 'known' || addingOfferIds.has(offer.id) || addedOfferIds.has(offer.id)"
+                    [disabled]="isLoadingShoppingList || !shoppingListId || offer.productName.status !== 'known' || addingOfferIds.has(offer.id) || addedOfferIds.has(offer.id)"
                     [attr.aria-label]="'Lägg till ' + productName(offer) + ' i inköpslistan'"
                   >
                     {{ addingOfferIds.has(offer.id) ? 'Lägger till…' : addedOfferIds.has(offer.id) ? '✓ Tillagd' : '＋ Lägg till' }}
