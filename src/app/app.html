@@ -20,7 +20,7 @@
   <main class="app-shell">
     <header class="topbar">
       <a class="brand" href="/" (click)="$event.preventDefault(); screen = 'week'" aria-label="Veckans Mat, veckoplanering"><span class="brand-mark">✳</span><span>veckans<span class="brand-accent">mat</span></span></a>
-      <nav class="main-nav" aria-label="Huvudmeny"><button type="button" [class.active]="screen === 'week'" (click)="screen = 'week'" aria-label="Veckan"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">Veckan</span></button><button type="button" [class.active]="screen === 'shopping'" (click)="openShoppingList()" [disabled]="!shoppingList" aria-label="Inköpslista"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-label">Handla</span></button><button type="button" [class.active]="screen === 'collection' || screen === 'recipe-detail' || screen === 'new-recipe' || screen === 'saved'" (click)="screen = 'collection'" aria-label="Recept"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Recept</span></button></nav>
+      <nav class="main-nav" aria-label="Huvudmeny"><button type="button" [class.active]="screen === 'week'" (click)="screen = 'week'" aria-label="Veckan"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">Veckan</span></button><button type="button" [class.active]="screen === 'shopping'" (click)="openShoppingList()" [disabled]="!shoppingList" aria-label="Inköpslista"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-label">Handla</span></button><button type="button" [class.active]="screen === 'offers'" (click)="screen = 'offers'" aria-label="Erbjudanden"><span class="nav-icon" aria-hidden="true">％</span><span class="nav-label">Erbjudanden</span></button><button type="button" [class.active]="screen === 'collection' || screen === 'recipe-detail' || screen === 'new-recipe' || screen === 'saved'" (click)="screen = 'collection'" aria-label="Recept"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Recept</span></button></nav>
       <div class="topbar-side"><span class="family-label"><span class="online-dot"></span> Familjens kokbok</span><button class="text-button lock-button" type="button" (click)="lockApp()" aria-label="Lås appen" title="Lås appen"><span aria-hidden="true">♙</span><span class="lock-label">Lås</span></button></div>
     </header>
 
@@ -289,6 +289,12 @@
           <p class="form-note"><span aria-hidden="true">✳</span> Ett recept i taget, många goda middagar framöver.</p>
         </form>
       </section>
+    } @else if (screen === 'offers') {
+      @defer (when screen === 'offers') {
+      <app-offers-page></app-offers-page>
+      } @loading {
+        <div class="state-card" aria-live="polite"><span class="loader"></span><p>Öppnar erbjudandena…</p></div>
+      }
     } @else {
       <section class="success-view" aria-live="polite"><div class="success-art" aria-hidden="true"><span>✓</span><i>✳</i><b>✳</b></div><p class="eyebrow">SPARAT I FAMILJENS KOKBOK</p><h1>{{ savedTitle }}<br>finns nu bland era recept.</h1><p class="muted">Redo för nästa gång det är dags att laga något riktigt gott.</p><div class="success-actions"><button class="button button-primary" type="button" (click)="screen = 'collection'">Till recepten <span aria-hidden="true">→</span></button><button class="button button-soft" type="button" (click)="startRecipe()">Lägg till ett till</button></div></section>
     }

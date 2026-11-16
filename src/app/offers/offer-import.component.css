@@ -1,0 +1,35 @@
+:host{display:block}
+.offer-import{margin-top:24px;padding:18px;border:1px solid #eae9e1;border-radius:10px;background:#fff}
+.offer-import-heading h2{margin:0;color:#384033;font:400 23px/1.2 Georgia,'Times New Roman',serif}
+.offer-import-heading .eyebrow{margin:0 0 7px}
+.offer-import-heading .muted{margin:8px 0 0;font-size:12px;line-height:1.55}
+.offer-upload{margin-top:17px;padding:14px;display:flex;align-items:center;gap:12px;border:1px dashed #b9c3aa;border-radius:8px;background:#fafbf7;color:#526a43;cursor:pointer}
+.offer-upload>span:first-child{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#eef2e8;font-size:20px}
+.offer-upload strong,.offer-upload small{display:block}
+.offer-upload strong{font-size:13px}
+.offer-upload small{margin-top:3px;color:#818579;font-size:10px}
+.offer-upload input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;clip-path:inset(50%)}
+.offer-import-alert,.offer-import-success{margin:12px 0 0;padding:10px 12px;border-radius:7px;font-size:12px;line-height:1.5}
+.offer-import-alert{background:#fcf1ec;color:#944f38}
+.offer-import-success{background:#eef4e9;color:#526a43}
+.offer-import-warnings{padding:10px 12px 10px 30px;background:#fcf6e8;color:#785b26;font-size:11px}
+.offer-file-summary{margin:16px 0 0;color:#72766a;font-size:11px}
+.offer-file-summary strong{color:#454b3f}
+.offer-import-dates{margin-top:12px;padding:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;border-radius:8px;background:#f7f7f2}
+.offer-import-dates p{grid-column:1/-1;margin:0;color:#73776b;font-size:11px}
+.offer-import-dates label,.offer-review-fields label{display:grid;gap:5px;color:#606657;font-size:10px;font-weight:650}
+.offer-import-dates .text-input,.offer-review-fields .text-input{width:100%;min-width:0;box-sizing:border-box;font:400 13px/1.35 inherit}
+.offer-review-list{margin-top:12px;display:grid;gap:10px}
+.offer-review-card{padding:12px;border:1px solid #eae9e1;border-radius:8px}
+.offer-review-card-heading{display:flex;justify-content:space-between;gap:8px;color:#606657;font-size:10px;font-weight:650}
+.offer-review-confidence{color:#937146}
+.offer-duplicate-warning{margin:8px 0 0;color:#9a6141;font-size:10px;line-height:1.45}
+.offer-review-card blockquote{margin:8px 0;padding:7px 9px;display:flex;flex-direction:column;gap:3px;border-left:2px solid #d5dacb;background:#f8f8f4;color:#73776b;font-size:10px;line-height:1.4}
+.offer-review-fields{margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.offer-conditions-input{grid-column:1/-1}
+.offer-conditions-input textarea{resize:vertical}
+.offer-review-check,.offer-complete-review{margin-top:11px;display:flex;align-items:flex-start;gap:8px;color:#545b4b;font-size:11px;line-height:1.45}
+.offer-review-check input,.offer-complete-review input{margin:2px 0 0;accent-color:#657d4f}
+.offer-complete-review{padding:12px;border-radius:8px;background:#f5f6ef}
+.offer-publish-button{margin-top:12px;width:100%}
+@media(max-width:520px){.offer-import{padding:13px}.offer-import-dates{padding:10px}.offer-review-card{padding:10px}.offer-review-fields{grid-template-columns:1fr}}

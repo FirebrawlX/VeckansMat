@@ -1,0 +1,87 @@
+<section class="offer-import" aria-labelledby="offer-import-title">
+  <header class="offer-import-heading">
+    <div>
+      <p class="eyebrow">MANUELL IMPORT · STORA COOP LUND</p>
+      <h2 id="offer-import-title">Granska reklamblad</h2>
+      <p class="muted">PDF:ens text läses i webbläsaren. AI hjälper till att hitta erbjudanden; inget publiceras innan ni granskat och godkänt allt.</p>
+    </div>
+  </header>
+
+  <label class="offer-upload">
+    <span aria-hidden="true">↑</span>
+    <span><strong>{{ readingPdf ? 'Läser reklambladet…' : 'Välj reklamblad som PDF' }}</strong><small>PDF, högst 15 MB och 30 sidor</small></span>
+    <input type="file" accept="application/pdf,.pdf" [disabled]="readingPdf || publishing" (change)="selectPdf($event)">
+  </label>
+
+  @if (error) { <p class="offer-import-alert" role="alert">{{ error }}</p> }
+  @if (message) { <p class="offer-import-success" role="status">{{ message }}</p> }
+  @if (warnings.length) {
+    <ul class="offer-import-warnings" aria-label="Varningar">
+      @for (warning of warnings; track warning) { <li>{{ warning }}</li> }
+    </ul>
+  }
+
+  @if (runId) {
+    <p class="offer-file-summary"><strong>{{ fileName }}</strong> · {{ pageCount }} sidor · {{ suggestions.length }} AI-förslag</p>
+
+    <div class="offer-import-dates">
+      <p>Kontrollera giltighetsdatumen på reklambladets första sida.</p>
+      <label>Gäller från<input class="text-input" type="date" name="offerValidityStart" [(ngModel)]="validityStart"></label>
+      <label>Gäller till<input class="text-input" type="date" name="offerValidityEnd" [(ngModel)]="validityEnd"></label>
+    </div>
+
+    <div class="offer-review-list">
+      @for (offer of suggestions; track offer.id; let index = $index) {
+        <article class="offer-review-card">
+          <div class="offer-review-card-heading">
+            <span>Förslag {{ index + 1 }} · sida {{ offer.sourcePage }}</span>
+            <span class="offer-review-confidence">{{ offer.extractionConfidence === 'high' ? 'AI bedömer kopplingen som hög' : offer.extractionConfidence === 'medium' ? 'AI bedömer kopplingen som medel' : 'AI bedömer kopplingen som osäker' }} · kontrollera ändå</span>
+          </div>
+          @if (offer.sourceLines.length) {
+            <blockquote>
+              @for (line of offer.sourceLines; track $index) { <span>{{ line }}</span> }
+            </blockquote>
+          }
+          @if (offer.duplicateOf) {
+            <p class="offer-duplicate-warning">Det här förslaget liknar ett tidigare förslag på samma sida. Kontrollera om det är en dubblett.</p>
+          }
+          <div class="offer-review-fields">
+            <label>Produktnamn<input class="text-input" [name]="'offerName' + index" [(ngModel)]="offer.productName" maxlength="160" placeholder="Oklart i reklambladet"></label>
+            <label>Avdelning<select class="text-input" [name]="'offerDepartment' + index" [(ngModel)]="offer.category">@for (department of departments; track department) { <option [value]="department">{{ department }}</option> }</select></label>
+            <label>Erbjudandepris (kr)<input class="text-input" [name]="'offerPrice' + index" type="number" min="0" max="10000" step="0.01" [(ngModel)]="offer.offerPrice" placeholder="Lämna tomt om oklart"></label>
+            <label>Pris gäller per<input class="text-input" [name]="'offerPriceUnit' + index" [(ngModel)]="offer.priceUnit" maxlength="30" placeholder="st, kg, förp. …"></label>
+            <label>Ordinarie pris (kr)<input class="text-input" [name]="'offerRegularPrice' + index" type="number" min="0" max="10000" step="0.01" [(ngModel)]="offer.regularPrice" placeholder="Saknas"></label>
+            <label>Varumärke<input class="text-input" [name]="'offerBrand' + index" [(ngModel)]="offer.brand" maxlength="100" placeholder="Saknas"></label>
+            <label>Förpackning<input class="text-input" [name]="'offerPackage' + index" [(ngModel)]="offer.packageSizeText" placeholder="t.ex. 500 g"></label>
+            <label>Jämförpris<input class="text-input" [name]="'offerUnitPrice' + index" [(ngModel)]="offer.unitPriceText" placeholder="t.ex. 29,90 kr/kg"></label>
+            <label class="offer-conditions-input">Villkor, ett per rad<textarea class="text-input" [name]="'offerConditions' + index" rows="2" [ngModel]="conditionsText(offer)" (ngModelChange)="updateConditions(offer, $event)" placeholder="Medlemspris, max 2/hushåll …"></textarea></label>
+          </div>
+          <label class="offer-review-check">
+            <input type="checkbox" [name]="'offerIncluded' + index" [(ngModel)]="offer.include">
+            <span>Det här är ett erbjudande som ska publiceras.</span>
+          </label>
+          <label class="offer-review-check">
+            <input type="checkbox" [name]="'offerReviewed' + index" [(ngModel)]="offer.verified">
+            <span>Jag har kontrollerat uppgifterna mot den här sidan i reklambladet{{ offer.include ? '' : ' och uteslutit förslaget' }}.</span>
+          </label>
+        </article>
+      }
+    </div>
+
+    <label class="offer-complete-review">
+      <input type="checkbox" name="completeOfferReview" [(ngModel)]="completeReview">
+      <span>Jag har granskat hela reklambladet och kontrollerat att förslagen är kompletta. Osäkra eller saknade uppgifter är inte gissade.</span>
+    </label>
+    @if (!packageFieldsAreValid) {
+      <p class="offer-import-alert" role="alert">Kontrollera formatet för förpackning och jämförpris. Exempel: 500 g och 29,90 kr/kg.</p>
+    }
+
+    @if (validityStart && validityEnd && !datesAreValid) {
+      <p class="offer-import-alert" role="alert">Slutdatumet måste vara samma dag som eller senare än startdatumet.</p>
+    }
+
+    <button class="button button-primary offer-publish-button" type="button" [disabled]="!canPublish || publishing" (click)="publish()">
+      {{ publishing ? 'Publicerar granskade erbjudanden…' : 'Publicera granskade erbjudanden' }}
+    </button>
+  }
+</section>

@@ -1,0 +1,138 @@
+<section class="offers-view" aria-labelledby="offers-title">
+  <header class="offers-heading">
+    <p class="eyebrow">BUTIKENS REKLAMBLAD</p>
+    <h1 id="offers-title">Veckans erbjudanden<span class="heading-spark"> ✳</span></h1>
+    <p class="muted">Samlat efter avdelning, så att det blir enkelt att hitta i butiken.</p>
+  </header>
+
+  @if (!hasPublishedOffers) {
+    <aside class="offers-demo-note" role="note">
+      <p><strong>Exempeldata för att testa sidan.</strong> Produkter, priser och villkor är påhittade och kommer inte från butikens aktuella reklamblad.</p>
+    </aside>
+  }
+  @if (loadError) {
+    <p class="offers-load-error" role="alert">Kunde inte kontrollera importerade erbjudanden. {{ loadError }}</p>
+  }
+
+  <div class="offers-store-picker">
+    <label for="offers-store">Visa butik</label>
+    <select id="offers-store" class="text-input" name="offersStore" [(ngModel)]="selectedStoreId">
+      @for (store of stores; track store.id) {
+        <option [value]="store.id">{{ store.name }} · {{ store.city }}</option>
+      }
+    </select>
+  </div>
+
+  @if (selectedStore; as store) {
+    <header class="offers-store-heading">
+      <div>
+        <p class="eyebrow">{{ store.retailer }} · {{ store.city }}</p>
+        <h2>{{ store.name }}</h2>
+        @if (hasPublishedOffers && publishedAt) {
+          <p class="offers-import-date">Senast publicerat {{ publishedAt | date:'short' }}</p>
+        }
+      </div>
+      <div class="offers-validity" aria-label="Reklambladets giltighetstid">
+        <div>
+          <strong>Reklamblad</strong>
+          @for (flyer of activeFlyers; track flyer.id) {
+            <span>{{ flyerPeriodLabel(flyer.validityPeriod) }}</span>
+          }
+          @if (!activeFlyers.length) { <span>Inget aktuellt reklamblad</span> }
+        </div>
+      </div>
+      @if (store.retailer === 'Coop') {
+        <button class="button button-soft offers-import-toggle" type="button" (click)="importOpen = !importOpen">
+          {{ importOpen ? 'Stäng import' : 'Importera reklamblad' }}
+        </button>
+      }
+    </header>
+
+    @for (flyer of activeFlyers; track flyer.id) {
+      @if (flyer.sourceNote) {
+        <p class="offers-review-state" role="note">
+          {{ flyer.sourceNote }}
+          <a [href]="flyer.sourceUrl" target="_blank" rel="noopener noreferrer">Öppna PDF</a>
+        </p>
+      }
+    }
+
+      @if (lastImport?.status === 'failed') {
+      <p class="offers-load-error" role="status">
+        {{ hasPublishedOffers ? 'Senaste importen misslyckades. Visar senast publicerade reklambladet.' : 'Senaste importen misslyckades. Inga importerade erbjudanden har publicerats ännu.' }}
+      </p>
+    }
+    @if (lastImport?.status === 'review') {
+      <p class="offers-review-state" role="status">En import väntar på granskning. Välj samma PDF igen för att fortsätta utan ett nytt AI-anrop.</p>
+    }
+
+    @if (importOpen) {
+      @defer (when importOpen) {
+        <app-offer-import (published)="onPublished()"></app-offer-import>
+      } @loading {
+        <div class="state-card" aria-live="polite"><span class="loader"></span><p>Öppnar importen…</p></div>
+      }
+    }
+
+    @if (groupedOffers.length) {
+      <div class="offer-departments">
+        @for (department of groupedOffers; track department.name) {
+          <section class="offer-department" [attr.aria-label]="department.name">
+            <header class="offer-department-heading">
+              <h3>{{ department.name }}</h3>
+              <span>{{ department.offers.length }} {{ department.offers.length === 1 ? 'erbjudande' : 'erbjudanden' }}</span>
+            </header>
+            <div class="offer-grid">
+              @for (offer of department.offers; track offer.id) {
+                <article class="offer-card">
+                  <div class="offer-card-heading">
+                    <span class="offer-category">{{ department.name }}</span>
+                    <span class="offer-expiry" [class.offer-expiry-soon]="isEndingSoon(offer)">
+                      {{ offerPeriodLabel(offer) }}
+                    </span>
+                  </div>
+                  <h4>{{ productName(offer) }}</h4>
+                  @if (brandLabel(offer)) {
+                    <p class="offer-brand">{{ brandLabel(offer) }}</p>
+                  }
+                  <div class="offer-price-row">
+                    <strong [class.offer-price-uncertain]="offer.offerPrice.status !== 'known'">
+                      {{ priceLabel(offer.offerPrice) }}
+                    </strong>
+                    @if (offer.regularPrice.status === 'known') {
+                      <span>Ord. {{ priceLabel(offer.regularPrice) }}</span>
+                    }
+                  </div>
+                  @if (priceNote(offer.offerPrice)) {
+                    <p class="offer-field-note">{{ priceNote(offer.offerPrice) }}</p>
+                  }
+                  <div class="offer-details">
+                    @if (packageSizeLabel(offer)) {
+                      <span>{{ packageSizeLabel(offer) }}</span>
+                    }
+                    @if (unitPriceLabel(offer)) {
+                      <span>{{ unitPriceLabel(offer) }}</span>
+                    }
+                  </div>
+                  @if (conditionLabels(offer).length) {
+                    <ul class="offer-conditions">
+                      @for (condition of conditionLabels(offer); track condition) {
+                        <li>{{ condition }}</li>
+                      }
+                    </ul>
+                  }
+                </article>
+              }
+            </div>
+          </section>
+        }
+      </div>
+    } @else {
+      <div class="offers-empty state-card">
+        <span class="state-icon" aria-hidden="true">◷</span>
+        <h2>Inga aktuella erbjudanden</h2>
+        <p>{{ hasPublishedOffers ? 'Det finns inga publicerade erbjudanden som gäller idag.' : 'Det finns inga exempel på erbjudanden som gäller idag för den här butiken.' }}</p>
+      </div>
+    }
+  }
+</section>

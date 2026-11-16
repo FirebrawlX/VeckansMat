@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { AuthService } from './auth.service';
 import { RecipeApiService, Recipe, RecipeDraft, RecipeIngredient, ShoppingList, ShoppingListItem, StoreSection, WeeklyPlan } from './recipe-api.service';
+import { OffersPageComponent } from './offers/offers-page.component';
 import { PantryManagerComponent } from './planner/pantry-manager.component';
 
 const DAY_NAMES = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -53,7 +54,7 @@ function emptyRecipe(): RecipeForm {
 }
 
 @Component({
-  imports: [...HlmButtonImports, FormsModule, PantryManagerComponent],
+  imports: [...HlmButtonImports, FormsModule, OffersPageComponent, PantryManagerComponent],
   selector: 'app-root',
   templateUrl: './app.html',
 })
@@ -67,7 +68,7 @@ export class App {
   recipes: Recipe[] = [];
   recipesLoading = false;
   recipesError = '';
-  screen: 'week' | 'shopping' | 'collection' | 'recipe-detail' | 'new-recipe' | 'saved' = 'week';
+  screen: 'week' | 'shopping' | 'offers' | 'collection' | 'recipe-detail' | 'new-recipe' | 'saved' = 'week';
   weekStart = getShoppingWeekStart();
   weeklyPlan: WeeklyPlan | null = null;
   planDraft: PlanEntry[] = [];

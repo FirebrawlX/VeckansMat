@@ -1,8 +1,13 @@
+import { extractOfferSuggestions, normalizeOfferPdfPages, validateOfferPublication } from './offer-import.js';
+import { hasValidAutomationToken, normalizeAutomatedOfferPayload } from './coop-offer-automation.js';
+
 const SESSION_COOKIE = 'veckansmat_session';
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const PIN_WINDOW_MS = 15 * 60 * 1000;
 const PIN_ATTEMPT_LIMIT = 5;
 const encoder = new TextEncoder();
+const COOP_STORE = { id: 'coop-lund', retailer: 'Coop', name: 'Stora Coop Lund', city: 'Lund' };
+const COOP_STORE_URL = 'https://www.coop.se/butiker-erbjudanden/stora-coop/stora-coop-lund/';
 
 export default {
   async fetch(request, env) {
@@ -36,9 +41,20 @@ async function handleApi(request, env, url) {
     return json({ authenticated: false }, 200, { 'Set-Cookie': expiredCookie(request) });
   }
 
+  if (request.method === 'POST' && url.pathname === '/api/offers/automated-publish') {
+    return publishAutomatedOffers(request, env);
+  }
+  if (request.method === 'POST' && url.pathname === '/api/offers/automated-failure') {
+    return recordAutomatedOfferFailure(request, env);
+  }
+
   if (!(await getSession(request, env.DB))) {
     return json({ error: 'Authentication required.' }, 401);
   }
+
+  if (request.method === 'GET' && url.pathname === '/api/offers') return getPublishedOffers(env.DB);
+  if (request.method === 'POST' && url.pathname === '/api/offers/extract') return extractOffers(request, env);
+  if (request.method === 'POST' && url.pathname === '/api/offers/publish') return publishOffers(request, env.DB);
 
   if (request.method === 'GET' && url.pathname === '/api/store-sections') return listStoreSections(env.DB);
   if (request.method === 'GET' && url.pathname === '/api/pantry-items') return listPantryItems(env.DB);
@@ -287,6 +303,235 @@ async function getSession(request, db) {
   const row = await db.prepare('SELECT token_hash, expires_at FROM auth_sessions WHERE token_hash = ? AND expires_at > ?')
     .bind(hash, Date.now()).first();
   return row ? { hash: row.token_hash } : null;
+}
+
+async function getPublishedOffers(db) {
+  const [published, latestRun] = await Promise.all([
+    db.prepare('SELECT catalog_json, published_at FROM offer_publications WHERE store_id = ?').bind(COOP_STORE.id).first(),
+    db.prepare('SELECT status, started_at, completed_at, message FROM offer_import_runs WHERE store_id = ? ORDER BY started_at DESC LIMIT 1')
+      .bind(COOP_STORE.id).first(),
+  ]);
+  return json({
+    catalog: published ? JSON.parse(published.catalog_json) : null,
+    publishedAt: published?.published_at ?? null,
+    lastImport: latestRun ? {
+      status: latestRun.status,
+      startedAt: latestRun.started_at,
+      completedAt: latestRun.completed_at,
+      message: latestRun.message ?? '',
+    } : null,
+  });
+}
+
+async function publishAutomatedOffers(request, env) {
+  if (!hasValidAutomationToken(request, env.OFFER_AUTOMATION_TOKEN)) {
+    return json({ error: 'Automation authentication failed.' }, 401);
+  }
+
+  const body = await readBody(request, 128 * 1024);
+  let normalized;
+  try {
+    normalized = normalizeAutomatedOfferPayload(body);
+  } catch (error) {
+    if (error instanceof Error) return json({ error: error.message }, 422);
+    throw error;
+  }
+
+  const sourceHash = await sha256(`${body.pdfEvidence.sha256}:${JSON.stringify(normalized.catalog)}`);
+  const published = await env.DB.prepare('SELECT source_hash, catalog_json, published_at FROM offer_publications WHERE store_id = ?')
+    .bind(COOP_STORE.id).first();
+  const alreadyPublished = published?.source_hash === sourceHash;
+  const catalog = alreadyPublished ? JSON.parse(published.catalog_json) : normalized.catalog;
+  const runId = crypto.randomUUID();
+  const now = Date.now();
+  const message = alreadyPublished
+    ? 'Reklambladet var redan publicerat. Inga dubbletter skapades.'
+    : 'Coops butikserbjudanden har publicerats.';
+  const statements = [
+    env.DB.prepare(`INSERT INTO offer_import_runs
+      (id, store_id, source_hash, status, candidate_json, offer_count, message, started_at, completed_at)
+      VALUES (?, ?, ?, 'published', '[]', ?, ?, ?, ?)`)
+      .bind(runId, COOP_STORE.id, sourceHash, normalized.offers.length, message, now, now),
+  ];
+  if (!alreadyPublished) {
+    statements.push(env.DB.prepare(`INSERT INTO offer_publications
+      (store_id, source_hash, catalog_json, published_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(store_id) DO UPDATE SET
+        source_hash = excluded.source_hash,
+        catalog_json = excluded.catalog_json,
+        published_at = excluded.published_at`)
+      .bind(COOP_STORE.id, sourceHash, JSON.stringify(catalog), now));
+  }
+  await env.DB.batch(statements);
+  return json({ alreadyPublished, catalog, publishedAt: alreadyPublished ? published.published_at : now });
+}
+
+async function recordAutomatedOfferFailure(request, env) {
+  if (!hasValidAutomationToken(request, env.OFFER_AUTOMATION_TOKEN)) {
+    return json({ error: 'Automation authentication failed.' }, 401);
+  }
+
+  const body = await readBody(request, 4 * 1024);
+  if (body.storeId !== COOP_STORE.id || typeof body.weekCode !== 'string'
+    || !/^\d{4}-\d{2}$/.test(body.weekCode)) {
+    return json({ error: 'Invalid automation failure report.' }, 400);
+  }
+
+  const now = Date.now();
+  const runId = crypto.randomUUID();
+  const sourceHash = await sha256(`coop-lund-failed:${body.weekCode}:${runId}`);
+  const message = 'Automatisk import misslyckades. Senast publicerade erbjudanden finns kvar.';
+  await env.DB.prepare(`INSERT INTO offer_import_runs
+    (id, store_id, source_hash, status, candidate_json, offer_count, message, started_at, completed_at)
+    VALUES (?, ?, ?, 'failed', '[]', 0, ?, ?, ?)`)
+    .bind(runId, COOP_STORE.id, sourceHash, message, now, now).run();
+  return json({ recorded: true });
+}
+
+async function extractOffers(request, env) {
+  const body = await readBody(request, 128 * 1024);
+  let pages;
+  try {
+    pages = normalizeOfferPdfPages(body.pages);
+  } catch (error) {
+    if (error instanceof Error) return json({ error: error.message }, 400);
+    throw error;
+  }
+
+  const sourceHash = await sha256(JSON.stringify(pages));
+  const published = await env.DB.prepare('SELECT source_hash, catalog_json FROM offer_publications WHERE store_id = ?')
+    .bind(COOP_STORE.id).first();
+  if (published?.source_hash === sourceHash) {
+    return json({
+      runId: '',
+      sourceHash,
+      pageCount: pages.length,
+      offers: [],
+      warnings: [],
+      alreadyPublished: true,
+      catalog: JSON.parse(published.catalog_json),
+    });
+  }
+
+  const existingRun = await env.DB.prepare(`SELECT id, status, candidate_json, started_at
+    FROM offer_import_runs
+    WHERE store_id = ? AND source_hash = ? AND status IN ('processing', 'review')
+    ORDER BY started_at DESC LIMIT 1`)
+    .bind(COOP_STORE.id, sourceHash).first();
+  if (existingRun?.status === 'review') {
+    return json({
+      runId: existingRun.id,
+      sourceHash,
+      pageCount: pages.length,
+      offers: JSON.parse(existingRun.candidate_json),
+      warnings: [],
+      alreadyPublished: false,
+    });
+  }
+  if (existingRun?.status === 'processing' && Date.now() - existingRun.started_at < 5 * 60 * 1000) {
+    return json({ error: 'Importen pågår redan. Vänta en stund och försök sedan igen.' }, 409);
+  }
+  if (existingRun?.status === 'processing') {
+    await env.DB.prepare(`UPDATE offer_import_runs SET status = 'failed',
+      message = 'Importen avbröts innan den blev klar.', completed_at = ?
+      WHERE id = ? AND status = 'processing'`)
+      .bind(Date.now(), existingRun.id).run();
+  }
+
+  const runId = crypto.randomUUID();
+  const startedAt = Date.now();
+  await env.DB.prepare(`INSERT INTO offer_import_runs
+    (id, store_id, source_hash, status, candidate_json, offer_count, message, started_at, completed_at)
+    VALUES (?, ?, ?, 'processing', '[]', 0, 'Läser reklambladet.', ?, NULL)`)
+    .bind(runId, COOP_STORE.id, sourceHash, startedAt).run();
+
+  try {
+    const offers = await extractOfferSuggestions(env.AI, pages);
+    const completedAt = Date.now();
+    await env.DB.prepare(`UPDATE offer_import_runs
+      SET status = 'review', candidate_json = ?, offer_count = ?,
+          message = 'AI-förslag väntar på manuell granskning.', completed_at = ?
+      WHERE id = ? AND status = 'processing'`)
+      .bind(JSON.stringify(offers), offers.length, completedAt, runId).run();
+    return json({
+      runId,
+      sourceHash,
+      pageCount: pages.length,
+      offers,
+      warnings: [],
+      alreadyPublished: false,
+    });
+  } catch (error) {
+    console.error('Offer extraction failed', error);
+    const message = error instanceof Error && error.message.startsWith('AI-tjänsten')
+      ? error.message
+      : 'AI-tjänsten kunde inte slutföra importen. Den kostnadsfria kvoten kan vara tillfälligt slut. Inget publicerades.';
+    await env.DB.prepare(`UPDATE offer_import_runs
+      SET status = 'failed', message = ?, completed_at = ?
+      WHERE id = ? AND status = 'processing'`)
+      .bind(message.slice(0, 240), Date.now(), runId).run();
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(503, `${message} Tidigare publicerade erbjudanden finns kvar.`);
+  }
+}
+
+async function publishOffers(request, db) {
+  const body = await readBody(request, 128 * 1024);
+  const runId = cleanText(body.runId, 80);
+  if (!/^[\w-]{36}$/.test(runId)) return json({ error: 'Importen hittades inte. Läs in PDF-filen igen.' }, 400);
+
+  const run = await db.prepare(`SELECT source_hash, status, candidate_json FROM offer_import_runs
+    WHERE id = ? AND store_id = ?`).bind(runId, COOP_STORE.id).first();
+  if (!run) return json({ error: 'Importen hittades inte. Läs in PDF-filen igen.' }, 404);
+
+  const current = await db.prepare('SELECT source_hash, catalog_json FROM offer_publications WHERE store_id = ?')
+    .bind(COOP_STORE.id).first();
+  if (run.status === 'published' && current?.source_hash === run.source_hash) {
+    return json(JSON.parse(current.catalog_json));
+  }
+  if (run.status !== 'review') {
+    return json({ error: 'Importen kan inte publiceras i sitt nuvarande läge. Läs in PDF-filen igen.' }, 409);
+  }
+
+  let reviewed;
+  try {
+    reviewed = validateOfferPublication(body, JSON.parse(run.candidate_json));
+  } catch (error) {
+    if (error instanceof Error) return json({ error: error.message }, 400);
+    throw error;
+  }
+
+  const flyerId = `coop-lund-${run.source_hash.slice(0, 16)}`;
+  const catalog = {
+    stores: [COOP_STORE],
+    flyers: [{
+      id: flyerId,
+      storeId: COOP_STORE.id,
+      sourceUrl: COOP_STORE_URL,
+      validityPeriod: {
+        status: 'known',
+        value: { startDate: reviewed.startDate, endDate: reviewed.endDate },
+      },
+    }],
+    offers: reviewed.offers.map((offer) => ({ ...offer, flyerId })),
+  };
+  const publishedAt = Date.now();
+  await db.batch([
+    db.prepare(`INSERT INTO offer_publications
+      (store_id, source_hash, catalog_json, published_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(store_id) DO UPDATE SET
+        source_hash = excluded.source_hash,
+        catalog_json = excluded.catalog_json,
+        published_at = excluded.published_at`)
+      .bind(COOP_STORE.id, run.source_hash, JSON.stringify(catalog), publishedAt),
+    db.prepare(`UPDATE offer_import_runs
+      SET status = 'published', message = 'Erbjudandena har publicerats.', completed_at = ?
+      WHERE id = ? AND status = 'review'`)
+      .bind(publishedAt, runId),
+  ]);
+  return json(catalog);
 }
 
 function isWeekStart(value) {
@@ -964,9 +1209,9 @@ function toShoppingItem(item) {
   };
 }
 
-async function readBody(request) {
+async function readBody(request, maxBytes = 64 * 1024) {
   const text = await request.text();
-  if (encoder.encode(text).length > 64 * 1024) throw new ApiError(413, 'Request body too large.');
+  if (encoder.encode(text).length > maxBytes) throw new ApiError(413, 'Request body too large.');
   try {
     const value = JSON.parse(text || '{}');
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};

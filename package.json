@@ -10,7 +10,10 @@
     "db:remote": "wrangler d1 migrations apply veckansmat --remote",
     "deploy": "npm run build && wrangler deploy",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:offers": "vitest run server/coop-offer-automation.spec.ts server/offer-import.spec.ts server/worker-offer-automation.spec.ts scripts/scrape-coop-offers.spec.ts",
+    "offers:scrape": "node scripts/scrape-coop-offers.mjs",
+    "offers:dry-run": "node scripts/scrape-coop-offers.mjs --dry-run"
   },
   "private": true,
   "packageManager": "npm@10.9.3",
@@ -30,7 +33,8 @@
     "clsx": "^2.1.1",
     "rxjs": "~7.8.0",
     "tailwind-merge": "^3.5.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "unpdf": "^2.2.1"
   },
   "devDependencies": {
     "@angular/build": "^22.2.4",
@@ -39,6 +43,7 @@
     "@spartan-ng/cli": "^1.8.2",
     "@tailwindcss/postcss": "^4.3.3",
     "jsdom": "^30.0.0",
+    "playwright": "^1.65.1",
     "postcss": "^8.5.31",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.3.3",
