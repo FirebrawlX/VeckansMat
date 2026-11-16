@@ -1,8 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { illustrativeOfferCatalog } from './offer.examples';
 import { OfferApiService } from './offer-api.service';
 import type { OfferPublishedResponse } from './offer-api.service';
 import { OfferImportComponent } from './offer-import.component';
@@ -41,13 +40,15 @@ interface OfferDepartment {
 })
 export class OffersPageComponent implements OnInit {
   private readonly offersApi = inject(OfferApiService);
-  catalog: OfferCatalog = illustrativeOfferCatalog;
+  private readonly changeDetector = inject(ChangeDetectorRef);
+  catalog: OfferCatalog = { stores: [], flyers: [], offers: [] };
+  isLoadingPublished = true;
   hasPublishedOffers = false;
   importOpen = false;
   loadError = '';
   publishedAt: number | null = null;
   lastImport: OfferPublishedResponse['lastImport'] = null;
-  selectedStoreId = this.stores[0]?.id ?? '';
+  selectedStoreId = '';
 
   get stores() {
     return this.catalog.stores;
@@ -78,14 +79,17 @@ export class OffersPageComponent implements OnInit {
       const flyer = this.storeFlyers.find((item) => item.id === offer.flyerId);
       if (!flyer || !this.isOfferCurrent(offer, flyer)) continue;
 
-      const department = offer.category.status === 'known'
-        ? offer.category.value
-        : 'Okänd avdelning';
+      const department =
+        offer.category.status === 'known' ? offer.category.value : 'Okänd avdelning';
       groups.set(department, [...(groups.get(department) ?? []), offer]);
     }
 
     return [...groups.entries()]
-      .sort(([left], [right]) => this.departmentPosition(left) - this.departmentPosition(right) || left.localeCompare(right, 'sv'))
+      .sort(
+        ([left], [right]) =>
+          this.departmentPosition(left) - this.departmentPosition(right) ||
+          left.localeCompare(right, 'sv'),
+      )
       .map(([name, offers]) => ({ name, offers }));
   }
 
@@ -110,12 +114,17 @@ export class OffersPageComponent implements OnInit {
       return this.expiryLabel(offer.validityPeriod.value);
     }
     if (offer.validityPeriod.status === 'uncertain') return 'Kontrollera giltigheten';
-    return flyer ? this.expiryLabel(flyer.validityPeriod.status === 'known' ? flyer.validityPeriod.value : null) : 'Giltighet saknas';
+    return flyer
+      ? this.expiryLabel(
+          flyer.validityPeriod.status === 'known' ? flyer.validityPeriod.value : null,
+        )
+      : 'Giltighet saknas';
   }
 
   productName(offer: GroceryOffer): string {
     if (offer.productName.status === 'known') return offer.productName.value;
-    if (offer.productName.status === 'uncertain') return offer.productName.value ?? 'Produktnamnet är osäkert';
+    if (offer.productName.status === 'uncertain')
+      return offer.productName.value ?? 'Produktnamnet är osäkert';
     return 'Produktnamn saknas';
   }
 
@@ -151,7 +160,8 @@ export class OffersPageComponent implements OnInit {
   }
 
   conditionLabels(offer: GroceryOffer): string[] {
-    if (offer.conditions.status === 'known') return offer.conditions.value.map((condition) => condition.text);
+    if (offer.conditions.status === 'known')
+      return offer.conditions.value.map((condition) => condition.text);
     if (offer.conditions.status === 'uncertain') return ['Villkor behöver kontrolleras'];
     return [];
   }
@@ -164,8 +174,10 @@ export class OffersPageComponent implements OnInit {
   }
 
   private isOfferCurrent(offer: GroceryOffer, flyer: OfferFlyer): boolean {
-    if (offer.validityPeriod.status === 'known') return this.isCurrentRange(offer.validityPeriod.value);
-    if (offer.validityPeriod.status === 'uncertain') return this.isCurrentPeriod(flyer.validityPeriod);
+    if (offer.validityPeriod.status === 'known')
+      return this.isCurrentRange(offer.validityPeriod.value);
+    if (offer.validityPeriod.status === 'uncertain')
+      return this.isCurrentPeriod(flyer.validityPeriod);
     return this.isCurrentPeriod(flyer.validityPeriod);
   }
 
@@ -215,7 +227,9 @@ export class OffersPageComponent implements OnInit {
   }
 
   private formatDate(date: string): string {
-    return new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short' }).format(this.dateValueAsDate(date));
+    return new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short' }).format(
+      this.dateValueAsDate(date),
+    );
   }
 
   private dateValueAsDate(date: string): Date {
@@ -242,6 +256,7 @@ export class OffersPageComponent implements OnInit {
   }
 
   private async loadPublishedOffers(): Promise<void> {
+    this.isLoadingPublished = true;
     try {
       const response = await this.offersApi.getPublished();
       this.lastImport = response.lastImport;
@@ -251,12 +266,23 @@ export class OffersPageComponent implements OnInit {
         this.catalog = response.catalog;
         this.hasPublishedOffers = true;
         this.selectedStoreId = response.catalog.stores[0]?.id ?? '';
+      } else {
+        this.catalog = { stores: [], flyers: [], offers: [] };
+        this.hasPublishedOffers = false;
+        this.selectedStoreId = '';
       }
     } catch (error) {
       const message = error instanceof HttpErrorResponse ? error.error?.error : null;
-      this.loadError = typeof message === 'string'
-        ? message
-        : 'Visar exempeldata eftersom importerade erbjudanden inte kunde läsas.';
+      this.loadError =
+        typeof message === 'string'
+          ? message
+          : 'Importerade erbjudanden kunde inte läsas. Försök igen.';
+      this.catalog = { stores: [], flyers: [], offers: [] };
+      this.hasPublishedOffers = false;
+      this.selectedStoreId = '';
+    } finally {
+      this.isLoadingPublished = false;
+      this.changeDetector.markForCheck();
     }
   }
 }

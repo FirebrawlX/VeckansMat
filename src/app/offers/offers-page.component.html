@@ -5,23 +5,32 @@
     <p class="muted">Samlat efter avdelning, så att det blir enkelt att hitta i butiken.</p>
   </header>
 
-  @if (!hasPublishedOffers) {
-    <aside class="offers-demo-note" role="note">
-      <p><strong>Exempeldata för att testa sidan.</strong> Produkter, priser och villkor är påhittade och kommer inte från butikens aktuella reklamblad.</p>
-    </aside>
-  }
   @if (loadError) {
     <p class="offers-load-error" role="alert">Kunde inte kontrollera importerade erbjudanden. {{ loadError }}</p>
   }
 
-  <div class="offers-store-picker">
-    <label for="offers-store">Visa butik</label>
-    <select id="offers-store" class="text-input" name="offersStore" [(ngModel)]="selectedStoreId">
-      @for (store of stores; track store.id) {
-        <option [value]="store.id">{{ store.name }} · {{ store.city }}</option>
-      }
-    </select>
-  </div>
+  @if (isLoadingPublished) {
+    <div class="state-card" aria-live="polite"><span class="loader"></span><p>Hämtar butikens erbjudanden…</p></div>
+  }
+
+  @if (stores.length > 1) {
+    <div class="offers-store-picker">
+      <label for="offers-store">Visa butik</label>
+      <select id="offers-store" class="text-input" name="offersStore" [(ngModel)]="selectedStoreId">
+        @for (store of stores; track store.id) {
+          <option [value]="store.id">{{ store.name }} · {{ store.city }}</option>
+        }
+      </select>
+    </div>
+  }
+
+  @if (!isLoadingPublished && !selectedStore) {
+    <div class="offers-empty state-card" role="status">
+      <span class="state-icon" aria-hidden="true">◷</span>
+      <h2>Inga importerade erbjudanden</h2>
+      <p>{{ loadError || 'Det finns ännu inga publicerade erbjudanden för någon butik.' }}</p>
+    </div>
+  }
 
   @if (selectedStore; as store) {
     <header class="offers-store-heading">
