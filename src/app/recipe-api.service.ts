@@ -47,6 +47,7 @@ export interface ShoppingListItem {
   amount: string;
   unit: string;
   checked: boolean;
+  isOffer: boolean;
   recipeId: string | null;
   recipeTitles?: string[];
   position: number;
@@ -154,7 +155,7 @@ export class RecipeApiService {
     return firstValueFrom(this.http.delete<void>(`/api/shopping-lists/${encodeURIComponent(id)}`, { withCredentials: true }));
   }
 
-  addShoppingItem(listId: string, item: Pick<ShoppingListItem, 'name' | 'amount' | 'unit'>): Promise<ShoppingListItem> {
+  addShoppingItem(listId: string, item: Pick<ShoppingListItem, 'name' | 'amount' | 'unit'> & { isOffer?: boolean }): Promise<ShoppingListItem> {
     return firstValueFrom(this.http.post<ShoppingListItem>(`/api/shopping-lists/${encodeURIComponent(listId)}/items`, item, { withCredentials: true }));
   }
 

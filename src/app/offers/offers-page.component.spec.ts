@@ -3,6 +3,7 @@ import { illustrativeOfferCatalog } from './offer.examples';
 import { OfferApiService } from './offer-api.service';
 import type { OfferPublishedResponse } from './offer-api.service';
 import { OffersPageComponent } from './offers-page.component';
+import { RecipeApiService } from '../recipe-api.service';
 
 async function createFixture(
   response: OfferPublishedResponse = {
@@ -10,6 +11,9 @@ async function createFixture(
     publishedAt: Date.now(),
     lastImport: null,
   },
+  shoppingListId: string | null = null,
+  addShoppingItem: (listId: string, item: { name: string; amount: string; unit: string; isOffer?: boolean }) => Promise<unknown> =
+    () => Promise.resolve({}),
 ) {
   await TestBed.configureTestingModule({
     imports: [OffersPageComponent],
@@ -18,9 +22,14 @@ async function createFixture(
         provide: OfferApiService,
         useValue: { getPublished: () => Promise.resolve(response) },
       },
+      {
+        provide: RecipeApiService,
+        useValue: { addShoppingItem },
+      },
     ],
   }).compileComponents();
   const fixture = TestBed.createComponent(OffersPageComponent);
+  fixture.componentInstance.shoppingListId = shoppingListId;
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
@@ -78,5 +87,43 @@ describe('OffersPageComponent', () => {
       'Inga importerade erbjudanden',
     );
     expect(element.querySelector('.offer-card')).toBeNull();
+  });
+
+  it('disables adding offers until a shopping list exists', async () => {
+    const addShoppingItem = () => Promise.resolve({});
+    const fixture = await createFixture(undefined, null, addShoppingItem);
+    const buttons = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.offer-add-button')];
+
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Skapa veckans inköpslista först');
+  });
+
+  it('adds an offer to the existing list with its offer marker', async () => {
+    const calls: { listId: string; item: { name: string; amount: string; unit: string; isOffer?: boolean } }[] = [];
+    const fixture = await createFixture(
+      undefined,
+      'weekly-list-id',
+      (listId, item) => {
+        calls.push({ listId, item });
+        return Promise.resolve({});
+      },
+    );
+    const element = fixture.nativeElement as HTMLElement;
+    const appleCard = [...element.querySelectorAll<HTMLElement>('.offer-card')].find((card) =>
+      card.textContent?.includes('Svenska äpplen'),
+    );
+    const button = appleCard?.querySelector<HTMLButtonElement>('.offer-add-button');
+
+    expect(button?.disabled).toBe(false);
+    button?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(calls).toEqual([
+      { listId: 'weekly-list-id', item: { name: 'Svenska äpplen', amount: '', unit: '', isOffer: true } },
+    ]);
+    expect(button?.textContent).toContain('Tillagd');
+    expect(button?.disabled).toBe(true);
   });
 });

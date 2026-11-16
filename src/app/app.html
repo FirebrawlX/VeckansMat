@@ -195,6 +195,7 @@
                           <span class="item-copy">
                             <span class="item-main">
                               <strong>{{ item.name }}</strong>
+                              @if (item.isOffer) {<span class="offer-item-badge" aria-label="Erbjudande">%</span>}
                               @if (item.amount || item.unit) {<small class="item-amount">{{ item.amount }} {{ item.unit }}</small>}
                             </span>
                             @if (item.recipeTitles?.length) {
@@ -291,7 +292,7 @@
       </section>
     } @else if (screen === 'offers') {
       @defer (when screen === 'offers') {
-      <app-offers-page></app-offers-page>
+      <app-offers-page [shoppingListId]="weekStart === currentShoppingWeekStart ? shoppingList?.id ?? null : null"></app-offers-page>
       } @loading {
         <div class="state-card" aria-live="polite"><span class="loader"></span><p>Öppnar erbjudandena…</p></div>
       }

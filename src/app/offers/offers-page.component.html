@@ -3,6 +3,9 @@
     <p class="eyebrow">BUTIKENS REKLAMBLAD</p>
     <h1 id="offers-title">Veckans erbjudanden<span class="heading-spark"> ✳</span></h1>
     <p class="muted">Samlat efter avdelning, så att det blir enkelt att hitta i butiken.</p>
+    <p class="offers-list-hint">
+      {{ shoppingListId ? 'Lägg till en vara här så markeras den med % i inköpslistan.' : 'Skapa veckans inköpslista först för att kunna lägga till erbjudanden.' }}
+    </p>
   </header>
 
   @if (loadError) {
@@ -129,6 +132,18 @@
                         <li>{{ condition }}</li>
                       }
                     </ul>
+                  }
+                  <button
+                    class="offer-add-button"
+                    type="button"
+                    (click)="addOffer(offer)"
+                    [disabled]="!shoppingListId || offer.productName.status !== 'known' || addingOfferIds.has(offer.id) || addedOfferIds.has(offer.id)"
+                    [attr.aria-label]="'Lägg till ' + productName(offer) + ' i inköpslistan'"
+                  >
+                    {{ addingOfferIds.has(offer.id) ? 'Lägger till…' : addedOfferIds.has(offer.id) ? '✓ Tillagd' : '＋ Lägg till' }}
+                  </button>
+                  @if (offerAddErrors[offer.id]) {
+                    <p class="offer-add-error" role="alert">{{ offerAddErrors[offer.id] }}</p>
                   }
                 </article>
               }

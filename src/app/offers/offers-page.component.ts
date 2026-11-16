@@ -1,7 +1,8 @@
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, OnInit, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { RecipeApiService } from '../recipe-api.service';
 import { OfferApiService } from './offer-api.service';
 import type { OfferPublishedResponse } from './offer-api.service';
 import { OfferImportComponent } from './offer-import.component';
@@ -40,7 +41,9 @@ interface OfferDepartment {
 })
 export class OffersPageComponent implements OnInit {
   private readonly offersApi = inject(OfferApiService);
+  private readonly recipesApi = inject(RecipeApiService);
   private readonly changeDetector = inject(ChangeDetectorRef);
+  @Input() shoppingListId: string | null = null;
   catalog: OfferCatalog = { stores: [], flyers: [], offers: [] };
   isLoadingPublished = true;
   hasPublishedOffers = false;
@@ -49,6 +52,9 @@ export class OffersPageComponent implements OnInit {
   publishedAt: number | null = null;
   lastImport: OfferPublishedResponse['lastImport'] = null;
   selectedStoreId = '';
+  addingOfferIds = new Set<string>();
+  addedOfferIds = new Set<string>();
+  offerAddErrors: Record<string, string> = {};
 
   get stores() {
     return this.catalog.stores;
@@ -95,6 +101,33 @@ export class OffersPageComponent implements OnInit {
 
   selectStore(storeId: string): void {
     this.selectedStoreId = storeId;
+  }
+
+  async addOffer(offer: GroceryOffer): Promise<void> {
+    if (
+      !this.shoppingListId ||
+      offer.productName.status !== 'known' ||
+      this.addingOfferIds.has(offer.id) ||
+      this.addedOfferIds.has(offer.id)
+    ) return;
+
+    this.addingOfferIds.add(offer.id);
+    delete this.offerAddErrors[offer.id];
+    try {
+      const packageSize = offer.packageSize.status === 'known' ? offer.packageSize.value : null;
+      await this.recipesApi.addShoppingItem(this.shoppingListId, {
+        name: offer.productName.value,
+        amount: packageSize ? this.formatNumber(packageSize.amount) : '',
+        unit: packageSize?.unit ?? '',
+        isOffer: true,
+      });
+      this.addedOfferIds.add(offer.id);
+    } catch {
+      this.offerAddErrors[offer.id] = 'Erbjudandet kunde inte läggas till. Försök igen.';
+    } finally {
+      this.addingOfferIds.delete(offer.id);
+      this.changeDetector.markForCheck();
+    }
   }
 
   async onPublished(): Promise<void> {

@@ -169,6 +169,10 @@ export class App {
     return this.isShoppingWeekend && this.weekStart === getShoppingWeekStart();
   }
 
+  get currentShoppingWeekStart(): string {
+    return getShoppingWeekStart();
+  }
+
   get isArchivedShoppingListLocked(): boolean {
     return Boolean(this.shoppingList && !this.archivedShoppingListUnlocked && isShoppingWeekClosed(new Date(), this.weekStart));
   }

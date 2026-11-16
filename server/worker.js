@@ -1114,18 +1114,24 @@ async function addShoppingItem(request, db, listId) {
   const body = await readBody(request);
   const name = cleanText(body.name, 160);
   if (!name) return json({ error: 'Enter an item name.' }, 400);
+  if (body.isOffer !== undefined && typeof body.isOffer !== 'boolean') {
+    return json({ error: 'Choose a valid offer state.' }, 400);
+  }
+  const isOffer = body.isOffer === true;
   const memory = await loadIngredientSectionMemory(db);
   const sectionCode = memory.get(ingredientKey(name)) ?? '';
   const id = crypto.randomUUID();
   const { maxPosition } = await db.prepare('SELECT COALESCE(MAX(position), -1) AS maxPosition FROM shopping_list_items WHERE list_id = ?')
     .bind(listId).first();
+  const amount = cleanText(body.amount, 40);
+  const unit = cleanText(body.unit, 40);
   await db.batch([
-    db.prepare(`INSERT INTO shopping_list_items (id, list_id, name, amount, unit, checked, recipe_id, position, section_code)
-      VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)`)
-      .bind(id, listId, name, cleanText(body.amount, 40), cleanText(body.unit, 40), maxPosition + 1, sectionCode),
+    db.prepare(`INSERT INTO shopping_list_items (id, list_id, name, amount, unit, checked, recipe_id, position, section_code, is_offer)
+      VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`)
+      .bind(id, listId, name, amount, unit, maxPosition + 1, sectionCode, Number(isOffer)),
     db.prepare('UPDATE shopping_lists SET updated_at = ? WHERE id = ?').bind(Date.now(), listId),
   ]);
-  return json({ id, name, amount: cleanText(body.amount, 40), unit: cleanText(body.unit, 40), checked: false, sectionCode }, 201);
+  return json({ id, name, amount, unit, checked: false, isOffer, recipeId: null, position: maxPosition + 1, sectionCode }, 201);
 }
 
 async function addRecipesToShoppingList(request, db, listId) {
@@ -1203,6 +1209,7 @@ function toShoppingItem(item) {
     amount: item.amount,
     unit: item.unit,
     checked: Boolean(item.checked),
+    isOffer: Boolean(item.is_offer),
     recipeId: item.recipe_id,
     position: item.position,
     sectionCode: item.section_code ?? '',
